@@ -1,0 +1,21 @@
+// options: nested
+.card {
+  @extend $box
+
+  // the title
+  .title {
+    font-weight: 600
+  }
+
+  &:hover {
+    color: blue
+  }
+
+  @media print {
+    display: none
+  }
+
+  color: red
+  padding: 1rem
+  margin: 0 // trailing
+}

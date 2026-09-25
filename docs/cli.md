@@ -32,6 +32,20 @@ The formatter keeps comments and up to one blank line, puts every statement on i
 own line, keeps line breaks inside values as continuation lines and removes
 semicolons. It refuses files with syntax errors.
 
+Continuation lines that start with a string are aligned to the first string, so
+`grid-template-areas` reads as a grid:
+
+```styl
+grid-template-areas: "header header"
+                     "sidebar main"
+```
+
+With `nested_blocks_first`, nested rules and at-rules with a block move above the
+declarations of their block (comments directly above a block move with it,
+`@extend` stays first). This changes the output order, which matters only if a
+nested rule and a declaration of its parent apply to the same element — e.g. with
+`& { … }`.
+
 ## `stylet migrate`
 
 See [Migrating from Stylus](migrate.md).
@@ -64,6 +78,8 @@ output = "public/dist/admin.css"
 [fmt]
 indent = 2              # spaces, or "tab"
 sort_properties = false # shorthands before longhands, otherwise alphabetical
+nested_blocks_first = false # nested rules/at-rules above the declarations
+align_strings = true    # align continuation lines of strings (grid-template-areas)
 ```
 
 Command-line flags add to the `[build]` settings.

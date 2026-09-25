@@ -25,9 +25,16 @@ fn fixtures() {
     paths.sort();
     for path in paths {
         let src = fs::read_to_string(&path).unwrap();
-        let sort = src.starts_with("// options: sort");
+        let flags = src
+            .lines()
+            .next()
+            .and_then(|l| l.strip_prefix("// options:"))
+            .unwrap_or("");
+        let sort = flags.contains("sort");
         let options = Options {
             sort_properties: sort,
+            nested_blocks_first: flags.contains("nested"),
+            align_strings: !flags.contains("no-align"),
             ..Options::default()
         };
         let formatted = format(&src, &options).unwrap();
@@ -38,7 +45,8 @@ fn fixtures() {
             "idempotent: {}",
             path.display()
         );
-        if !sort {
+        // Sorting and moving blocks reorder the output on purpose.
+        if !sort && !options.nested_blocks_first {
             let semicolons = src.contains(';');
             if !semicolons {
                 assert_eq!(

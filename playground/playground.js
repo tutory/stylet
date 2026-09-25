@@ -32,7 +32,7 @@ const $ = (id) => document.getElementById(id)
 const source = $('source')
 const output = $('output')
 const diagnostics = $('diagnostics')
-const options = { minify: $('minify'), customMedia: $('customMedia'), sort: $('sort') }
+const options = { minify: $('minify'), customMedia: $('customMedia'), sort: $('sort'), nested: $('nested') }
 
 function encode(text) {
   const bytes = new TextEncoder().encode(text)
@@ -122,7 +122,7 @@ function flash(button, text) {
 }
 
 $('format').addEventListener('click', () => {
-  const result = format(source.value, 2, options.sort.checked)
+  const result = format(source.value, 2, options.sort.checked, options.nested.checked)
   if (result.code == null) {
     showDiagnostics(result.diagnostics)
     flash($('format'), 'Fix errors first')

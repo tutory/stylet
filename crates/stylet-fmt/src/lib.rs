@@ -22,11 +22,29 @@ impl Default for Indent {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Options {
     pub indent: Indent,
     /// Sort runs of declarations (see the `sort` module for the order).
     pub sort_properties: bool,
+    /// Move nested blocks (rules, placeholders, at-rules with a block) above the
+    /// declarations of their block. Comments directly above a block move with
+    /// it; `@extend` and `@import` stay first.
+    pub nested_blocks_first: bool,
+    /// Align continuation lines that start with a string (`grid-template-areas`)
+    /// to the first string's quote.
+    pub align_strings: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            indent: Indent::default(),
+            sort_properties: false,
+            nested_blocks_first: false,
+            align_strings: true,
+        }
+    }
 }
 
 /// Formats `src`. Fails with the syntax errors if there are any besides semicolons.
@@ -98,6 +116,9 @@ impl Printer<'_> {
         if self.options.sort_properties {
             sort_declarations(&mut entries);
         }
+        if self.options.nested_blocks_first && in_block {
+            entries = nested_blocks_first(entries);
+        }
         for (i, entry) in entries.iter().enumerate() {
             if entry.blank_before && i > 0 {
                 self.out.push('\n');
@@ -163,7 +184,7 @@ impl Printer<'_> {
         for element in node.children_with_tokens() {
             match element {
                 SyntaxElement::Node(child) => match child.kind() {
-                    SELECTOR => self.tokens(&child, depth),
+                    SELECTOR => self.tokens(&child, depth, false),
                     PROPERTY => self.out += &child.text().to_string(),
                     VALUE | PRELUDE => {
                         if !self.out.ends_with(' ') {
@@ -172,7 +193,8 @@ impl Printer<'_> {
                         if node.kind() == EXTEND {
                             self.extend_targets(&child);
                         } else {
-                            self.tokens(&child, depth + 1);
+                            let align = child.kind() == VALUE && self.options.align_strings;
+                            self.tokens(&child, depth + 1, align);
                         }
                     }
                     BLOCK => self.block(&child, depth),
@@ -226,9 +248,12 @@ impl Printer<'_> {
 
     /// Prints the tokens of a selector, value or prelude: whitespace collapses to
     /// one space, line breaks become continuation lines at `continuation` depth,
-    /// comments are kept.
-    fn tokens(&mut self, node: &SyntaxNode, continuation: usize) {
+    /// comments are kept. With `align`, continuation lines starting with a
+    /// string are aligned to the first string of the value.
+    fn tokens(&mut self, node: &SyntaxNode, continuation: usize, align: bool) {
         let mut pending: Option<Gap> = None;
+        // Whitespace up to the first string's column on its line.
+        let mut string_column: Option<String> = None;
         for token in node
             .descendants_with_tokens()
             .filter_map(|e| e.into_token())
@@ -248,16 +273,34 @@ impl Printer<'_> {
                     pending = (kind == LINE_COMMENT).then_some(Gap::Newline);
                 }
                 _ => {
-                    if let Some(gap) = pending.take() {
-                        let closing = matches!(kind, R_PAREN | R_BRACK);
-                        self.gap(
-                            gap,
-                            if closing {
-                                continuation.saturating_sub(1)
-                            } else {
-                                continuation
-                            },
-                        );
+                    match (pending.take(), &string_column) {
+                        (Some(Gap::Newline), Some(column)) if align && kind == STRING => {
+                            let column = column.clone();
+                            self.out
+                                .truncate(self.out.trim_end_matches([' ', '\t']).len());
+                            self.out.push('\n');
+                            self.out += &column;
+                        }
+                        (Some(gap), _) => {
+                            let closing = matches!(kind, R_PAREN | R_BRACK);
+                            self.gap(
+                                gap,
+                                if closing {
+                                    continuation.saturating_sub(1)
+                                } else {
+                                    continuation
+                                },
+                            );
+                        }
+                        (None, _) => {}
+                    }
+                    if align && kind == STRING && string_column.is_none() {
+                        let line = &self.out[self.out.rfind('\n').map_or(0, |i| i + 1)..];
+                        let column: String = line
+                            .chars()
+                            .map(|c| if c == '\t' { '\t' } else { ' ' })
+                            .collect();
+                        string_column = Some(column);
                     }
                     self.out += token.text();
                 }
@@ -277,6 +320,57 @@ impl Printer<'_> {
 enum Gap {
     Space,
     Newline,
+}
+
+/// Stable partition: `@extend`/`@import` first, then nested blocks (with the
+/// comments directly above them), then everything else.
+fn nested_blocks_first(entries: Vec<Entry>) -> Vec<Entry> {
+    let is_block = |e: &Entry| {
+        e.element.as_node().is_some_and(|n| match n.kind() {
+            RULE | PLACEHOLDER => true,
+            AT_RULE => n.children().any(|c| c.kind() == BLOCK),
+            _ => false,
+        })
+    };
+    let is_head = |e: &Entry| {
+        e.element
+            .as_node()
+            .is_some_and(|n| matches!(n.kind(), EXTEND | IMPORT))
+    };
+    let (mut head, mut blocks, mut rest) = (Vec::new(), Vec::new(), Vec::new());
+    let mut comments: Vec<Entry> = Vec::new();
+    for entry in entries {
+        if entry.element.as_token().is_some() {
+            if entry.blank_before {
+                rest.append(&mut comments);
+            }
+            comments.push(entry);
+            continue;
+        }
+        let target = if is_head(&entry) {
+            &mut head
+        } else if is_block(&entry) && !entry.blank_before {
+            &mut blocks
+        } else if is_block(&entry) {
+            rest.append(&mut comments);
+            &mut blocks
+        } else {
+            &mut rest
+        };
+        target.append(&mut comments);
+        target.push(entry);
+    }
+    rest.append(&mut comments);
+    if !blocks.is_empty() && !rest.is_empty() {
+        rest[0].blank_before = true;
+    }
+    let mut out = head;
+    out.append(&mut blocks);
+    out.append(&mut rest);
+    if let Some(first) = out.first_mut() {
+        first.blank_before = false;
+    }
+    out
 }
 
 /// Sorts each run of adjacent declarations; blank lines and other statements end a run.
