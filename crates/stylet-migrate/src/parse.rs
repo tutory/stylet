@@ -1,10 +1,11 @@
 //! Indentation-based Stylus parser: source → statement tree. Expressions are
 //! kept as raw text and parsed during evaluation.
 
-/// A statement with the 1-based line it starts on.
+/// A statement with the 1-based lines it spans (including nested lines).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stmt {
     pub line: u32,
+    pub end: u32,
     pub kind: StmtKind,
 }
 
@@ -97,6 +98,8 @@ pub struct Branch {
 #[derive(Debug, Clone)]
 struct Line {
     number: u32,
+    /// Last physical line.
+    end: u32,
     indent: usize,
     text: String,
     /// Trailing `// …` comment.
@@ -106,6 +109,12 @@ struct Line {
 struct Node {
     line: Line,
     children: Vec<Node>,
+}
+
+impl Node {
+    fn end(&self) -> u32 {
+        self.children.last().map_or(self.line.end, Node::end)
+    }
 }
 
 pub fn parse(src: &str) -> Vec<Stmt> {
@@ -138,6 +147,7 @@ fn logical_lines(src: &str) -> Vec<Line> {
             }
             out.push(Line {
                 number,
+                end: i as u32,
                 indent,
                 text,
                 comment: None,
@@ -155,6 +165,7 @@ fn logical_lines(src: &str) -> Vec<Line> {
             }
             out.push(Line {
                 number,
+                end: i as u32,
                 indent,
                 text,
                 comment: None,
@@ -163,9 +174,21 @@ fn logical_lines(src: &str) -> Vec<Line> {
         }
 
         let (mut code, mut comment) = split_comment(trimmed);
+        // A trailing `/* … */` on the same line.
+        if comment.is_none()
+            && code.ends_with("*/")
+            && let Some(start) = code.rfind("/*")
+            && start > 0
+        {
+            comment = Some(code[start..].to_string());
+            code = code[..start].trim_end().to_string();
+        }
+        let code_trimmed = code.trim_end_matches(';').trim_end().len();
+        code.truncate(code_trimmed);
         if code.is_empty() {
             out.push(Line {
                 number,
+                end: i as u32,
                 indent,
                 text: comment.unwrap_or_default(),
                 comment: None,
@@ -201,6 +224,7 @@ fn logical_lines(src: &str) -> Vec<Line> {
         }
         out.push(Line {
             number,
+            end: i as u32,
             indent,
             text: code,
             comment,
@@ -326,6 +350,7 @@ fn statements(nodes: Vec<Node>) -> Vec<Stmt> {
     let mut nodes = nodes.into_iter().peekable();
     while let Some(node) = nodes.next() {
         let line = node.line.number;
+        let end = node.end();
         let text = node.line.text.clone();
         let has_children = !node.children.is_empty();
 
@@ -336,7 +361,7 @@ fn statements(nodes: Vec<Node>) -> Vec<Stmt> {
         }
         if !pending_selectors.is_empty() && !(has_children && looks_like_rule(&text)) {
             for (line, text) in pending_selectors.drain(..) {
-                out.push(unknown(line, text, "selector without a block"));
+                out.push(unknown(line, line, text, "selector without a block"));
             }
         }
 
@@ -345,28 +370,40 @@ fn statements(nodes: Vec<Node>) -> Vec<Stmt> {
             let body = statements(node.children);
             if let Some(Stmt {
                 kind: StmtKind::If { branches },
+                end: if_end,
                 ..
             }) = out.last_mut()
             {
                 branches.push(Branch { body, ..branch });
+                *if_end = end;
             } else {
-                out.push(unknown(line, text, "`else` without `if`"));
+                out.push(unknown(line, end, text, "`else` without `if`"));
             }
             continue;
         }
 
+        let start = pending_selectors.first().map_or(line, |(l, _)| *l);
         let kind = classify(node, &mut pending_selectors);
-        out.push(Stmt { line, kind });
+        out.push(Stmt {
+            line: if matches!(kind, StmtKind::Rule { .. }) {
+                start
+            } else {
+                line
+            },
+            end,
+            kind,
+        });
     }
     for (line, text) in pending_selectors {
-        out.push(unknown(line, text, "selector without a block"));
+        out.push(unknown(line, line, text, "selector without a block"));
     }
     out
 }
 
-fn unknown(line: u32, text: String, reason: &str) -> Stmt {
+fn unknown(line: u32, end: u32, text: String, reason: &str) -> Stmt {
     Stmt {
         line,
+        end,
         kind: StmtKind::Unknown {
             text,
             reason: reason.into(),
@@ -547,13 +584,9 @@ fn assignment(text: &str) -> Option<(String, AssignOp, &str)> {
         .find(|op| rest.starts_with(&format!("{op}=")))
     {
         (AssignOp::Compound(op), &rest[2..])
-    } else if let Some(v) = rest.strip_prefix('=') {
-        if v.starts_with('=') {
-            return None;
-        }
-        (AssignOp::Set, v)
     } else {
-        return None;
+        let v = rest.strip_prefix('=').filter(|v| !v.starts_with('='))?;
+        (AssignOp::Set, v)
     };
     Some((name.to_string(), op, value.trim()))
 }

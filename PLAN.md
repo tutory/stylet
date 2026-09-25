@@ -58,7 +58,7 @@ Output (nesting is **not** flattened; native CSS nesting is emitted):
   `@import` may be nested in rules and at-rules; the imported file's contents are placed at that position.
   - **Dedupe per context**: a file is included once per (canonical path, chain of enclosing rules/at-rules).
     Importing it twice under `.a` emits it once; under `.a` and `.b` it is emitted (scoped) twice.
-  - Files that **define placeholders** must be imported at the top level (error otherwise).
+  - Files that **define placeholders** must be imported at the top level or inside `@layer`s only (error otherwise).
   - Non-nestable at-rules (`@font-face`, `@keyframes`, `@property`, `@counter-style`, …) in a file imported
     inside a style rule are an error.
   - A top-level `&` is only allowed in files imported inside a style rule.

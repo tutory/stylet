@@ -1,0 +1,47 @@
+=== /p/components/button.styl
+.button,
+.link {
+  display: flex
+  justify-content: space-between
+  align-items: center
+  text-overflow: ellipsis
+  white-space: nowrap
+  gap: calc(var(--gap) * 2)
+  margin: var(--alias)
+  box-shadow: var(--shadow)
+  color: color-mix(in srgb, var(--black) 80%, transparent)
+  width: calc(100% - 10px)
+  font: 12px/1.5 sans-serif
+  @extend $focus
+  &:hover {
+    color: red // hover
+  }
+  @media (max-width: 600px) {
+    padding: 0
+  }
+  // stylet-migrate: for n in 1..2
+  // stylet-migrate:   .l-{n}
+  // stylet-migrate:     x: n
+  // stylet-migrate: if isDevelopment
+  // stylet-migrate:   outline: red
+  // stylet-migrate: @extend .other
+}
+=== /p/index.styl
+@import 'vars'
+@import 'mixins'
+@import 'components/button' layer(base)
+=== /p/mixins.styl
+$focus {
+  outline: 1px solid
+}
+=== /p/vars.styl
+// variables
+:root {
+  --gap: 4px
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3)
+  --alias: var(--gap)
+}
+=== warnings
+/p/components/button.styl:16 [loop] loops aren't migrated; consider CSS custom properties (or --unroll-loops)
+/p/components/button.styl:19 [condition] condition on `isDevelopment`, which isn't defined in Stylus (injected from JS?); use --define isDevelopment=…
+/p/components/button.styl:21 [extend-selector] `@extend .other`: only placeholders can be extended; turn the target into a placeholder

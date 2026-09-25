@@ -1,0 +1,41 @@
+=== /p/components/button.styl
+.button,
+.link {
+  display: flex
+  justify-content: space-between
+  align-items: center
+  text-overflow: ellipsis
+  white-space: nowrap
+  gap: 8px
+  margin: 4px
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .3)
+  color: color-mix(in srgb, var(--black) 80%, transparent)
+  width: calc(100% - 10px)
+  font: 12px/1.5 sans-serif
+  @extend $focus
+  &:hover {
+    color: red // hover
+  }
+  @media (max-width: 600px) {
+    padding: 0
+  }
+  .l-1 {
+    x: 1
+  }
+  .l-2 {
+    x: 2
+  }
+  // stylet-migrate: @extend .other
+}
+=== /p/index.styl
+@import 'vars'
+@import 'mixins'
+@import 'components/button' layer(base)
+=== /p/mixins.styl
+$focus {
+  outline: 1px solid
+}
+=== /p/vars.styl
+// variables
+=== warnings
+/p/components/button.styl:21 [extend-selector] `@extend .other`: only placeholders can be extended; turn the target into a placeholder

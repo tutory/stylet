@@ -13,3 +13,7 @@ workspace = true
 [dependencies]
 stylet-syntax.workspace = true
 stylet-fmt.workspace = true
+stylet-resolve.workspace = true
+
+[dev-dependencies]
+expect-test = "1.5.1"

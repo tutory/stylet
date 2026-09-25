@@ -105,11 +105,17 @@ struct Scope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Extender {
     Selector(String),
-    Placeholder(String),
+    /// A placeholder, or rules nested in it (`nested` holds their selectors).
+    Placeholder {
+        name: String,
+        nested: Vec<String>,
+    },
 }
 
 struct PlaceholderDef {
     name: String,
+    /// Where it is defined; the same definition may be emitted more than once.
+    origin: (FileId, TextRange),
     /// Output range of the whole rule, including the separator before it.
     item: Range<usize>,
     /// Output range of the head, replaced by the extenders' selectors.
@@ -375,13 +381,24 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         {
             return; // nested in a block: already a syntax error
         }
-        if ctx != Ctx::Root || !self.scope.is_empty() {
+        // Only cascade layers may enclose a placeholder: inside style rules or
+        // conditional rules, extenders' selectors would change meaning.
+        let only_layers = self
+            .scope
+            .iter()
+            .all(|s| matches!(&s.kind, ScopeKind::AtRule(name) if name == "layer"));
+        if ctx.in_style() || !only_layers {
             return self.error(
                 range,
-                "placeholders must be defined at the top level of a file imported at the top level",
+                "placeholders must be defined at the top level of a file (or of a `@layer`)",
             );
         }
-        if self.placeholders.iter().any(|p| p.name == name) {
+        let origin = (self.file(), range);
+        if self
+            .placeholders
+            .iter()
+            .any(|p| p.name == name && p.origin != origin)
+        {
             return self.error(range, format!("placeholder `{name}` is already defined"));
         }
         let item_start = self.item_start;
@@ -392,6 +409,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         if let Some(head) = head {
             self.placeholders.push(PlaceholderDef {
                 name,
+                origin,
                 item: item_start..self.out.len(),
                 head,
             });
@@ -404,7 +422,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             return self.error(range, "`@extend` must be inside a rule");
         }
         let mut selector: Option<String> = None;
-        let mut placeholder: Option<String> = None;
+        let mut placeholder: Option<(String, Vec<String>)> = None;
         for scope in &self.scope {
             match &scope.kind {
                 ScopeKind::AtRule(name) if CONDITIONAL_RULES.contains(&name.as_str()) => {
@@ -412,12 +430,11 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
                     return self.error(range, message);
                 }
                 ScopeKind::AtRule(_) => {}
-                ScopeKind::Placeholder(name) => placeholder = Some(name.clone()),
+                ScopeKind::Placeholder(name) => placeholder = Some((name.clone(), Vec::new())),
                 ScopeKind::Style if placeholder.is_some() => {
-                    return self.error(
-                        range,
-                        "`@extend` inside a nested rule of a placeholder isn't supported",
-                    );
+                    if let Some((_, nested)) = &mut placeholder {
+                        nested.push(scope.head.clone());
+                    }
                 }
                 ScopeKind::Style => {
                     let separator = if self.options.minify { "," } else { ", " };
@@ -429,7 +446,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             }
         }
         let extender = match (placeholder, selector) {
-            (Some(name), _) => Extender::Placeholder(name),
+            (Some((name, nested)), _) => Extender::Placeholder { name, nested },
             (None, Some(selector)) => Extender::Selector(selector),
             (None, None) => return self.error(range, "`@extend` must be inside a rule"),
         };
@@ -486,8 +503,18 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         for use_ in self.extends.iter().filter(|u| u.target == name) {
             let found = match &use_.extender {
                 Extender::Selector(selector) => vec![selector.clone()],
-                Extender::Placeholder(p) if !visiting.contains(p) => self.selectors_of(p, visiting),
-                Extender::Placeholder(_) => Vec::new(),
+                Extender::Placeholder { name: p, nested } if !visiting.contains(p) => {
+                    let separator = if self.options.minify { "," } else { ", " };
+                    self.selectors_of(p, visiting)
+                        .into_iter()
+                        .map(|base| {
+                            nested.iter().fold(base, |parent, child| {
+                                extend::nest(&parent, child, separator)
+                            })
+                        })
+                        .collect()
+                }
+                Extender::Placeholder { .. } => Vec::new(),
             };
             for selector in found {
                 if !out.contains(&selector) {

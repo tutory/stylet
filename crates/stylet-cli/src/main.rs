@@ -1,6 +1,7 @@
 mod build;
 mod config;
 mod fmt;
+mod migrate;
 mod report;
 
 use clap::{Parser, Subcommand};
@@ -40,6 +41,41 @@ enum Command {
         /// Rebuild when inputs change.
         #[arg(short, long)]
         watch: bool,
+    },
+    /// Convert Stylus files to stylet, following the imports of the given entries.
+    /// Files are rewritten in place unless `--out` is given.
+    Migrate {
+        /// Stylus entry files, e.g. `client/index.styl`.
+        #[arg(required = true)]
+        entries: Vec<PathBuf>,
+        /// Directory `/`-prefixed imports resolve against (default: stylet.toml root or cwd).
+        #[arg(long)]
+        root: Option<PathBuf>,
+        /// Write converted files below this directory instead of in place.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Only report; don't write anything.
+        #[arg(long)]
+        dry_run: bool,
+        /// Only print the summary, not every warning.
+        #[arg(short, long)]
+        quiet: bool,
+        /// `props`: global variables become custom properties; `inline`: always inline.
+        #[arg(long, default_value = "props", value_parser = ["props", "inline"])]
+        vars: String,
+        /// Prefix for generated custom property names.
+        #[arg(long, default_value = "")]
+        var_prefix: String,
+        /// Unroll `for` loops instead of commenting them out.
+        #[arg(long)]
+        unroll_loops: bool,
+        /// Value for an identifier Stylus got from JS, e.g. `isDevelopment=false`.
+        #[arg(long = "define", value_name = "NAME=VALUE")]
+        defines: Vec<String>,
+        /// Stylus file whose mixins and functions are available but which isn't
+        /// converted, e.g. `node_modules/axis/axis/index.styl`.
+        #[arg(long)]
+        preload: Vec<PathBuf>,
     },
     /// Format files in place. Directories are searched for `.styl` files;
     /// `-` formats stdin to stdout.
@@ -130,6 +166,52 @@ fn run(cli: Cli) -> Result<bool, String> {
             } else {
                 Ok(build::build(&config, &build))
             }
+        }
+        Command::Migrate {
+            entries,
+            root,
+            out,
+            dry_run,
+            quiet,
+            vars,
+            var_prefix,
+            unroll_loops,
+            defines,
+            preload,
+        } => {
+            let defines = defines
+                .iter()
+                .map(|d| {
+                    d.split_once('=')
+                        .map(|(k, v)| (k.to_string(), v.to_string()))
+                        .ok_or_else(|| format!("`--define {d}`: expected NAME=VALUE"))
+                })
+                .collect::<Result<_, _>>()?;
+            let args = migrate::Args {
+                entries,
+                root: root.map_or_else(
+                    || config.root(),
+                    |r| stylet_resolve::normalize(&cwd.join(r)),
+                ),
+                out: out.map(|o| stylet_resolve::normalize(&cwd.join(o))),
+                dry_run,
+                quiet,
+                options: stylet_migrate::Options {
+                    vars: if vars == "inline" {
+                        stylet_migrate::VarMode::Inline
+                    } else {
+                        stylet_migrate::VarMode::Props
+                    },
+                    var_prefix,
+                    unroll_loops,
+                    defines,
+                    preload: preload
+                        .iter()
+                        .map(|p| stylet_resolve::normalize(&cwd.join(p)))
+                        .collect(),
+                },
+            };
+            migrate::run(&args, &cwd)
         }
         Command::Fmt { paths, check } => {
             let options = config.fmt.options()?;

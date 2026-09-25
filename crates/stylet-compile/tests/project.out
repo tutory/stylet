@@ -41,7 +41,7 @@ client/legacy.css
 --- diagnostics
 env/a/errors.styl: can't find `./missing` (tried env/a/missing.styl, env/a/missing/index.styl)
 env/a/cycle-b.styl: import cycle: env/a/cycle-a.styl → env/a/cycle-b.styl → env/a/cycle-a.styl
-client/placeholders.styl: placeholders must be defined at the top level of a file imported at the top level
+client/placeholders.styl: placeholders must be defined at the top level of a file (or of a `@layer`)
 --- dependencies
 env/a/errors.styl
 env/a/cycle-a.styl
