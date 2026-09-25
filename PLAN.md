@@ -107,7 +107,8 @@ Variables, mixins, `if`/`for`, `{}` interpolation, math, built-in functions, **c
   (`margin` before `margin-top`), otherwise alphabetical; repeated same-property fallbacks keep their relative order.
   Needs a built-in shorthand→longhand table.
 - **Migration** (`stylet migrate`): see [Migration](#migration).
-- **Highlighting**: VS Code extension (TextMate grammar + LSP client), tree-sitter grammar, HTML highlight library.
+- **Highlighting**: VS Code extension (TextMate grammar + LSP client), tree-sitter grammar; on the web a
+  highlight.js language definition (`playground/stylet-hljs.js`), used by the playground.
   Note: `.styl` collides with existing Stylus extensions/grammars.
 - **LSP**: diagnostics, go-to-import, placeholder definition/references, format on save.
 - **Docs + playground**: static docs site; playground compiles/formats a single string in the browser via WASM
@@ -176,10 +177,9 @@ Corpus: `../webapp`, 550 `.styl` files (excluding `.claude/worktrees`), 8 env en
 | `stylet-compile` | Placeholders/`@extend`, selector resolution, `url()` rebasing, CSS emit, source maps, minify. |
 | `stylet-fmt` | Formatter + optional property sort. |
 | `stylet-migrate` | Stylus-subset → stylet converter. |
-| `stylet-highlight` | CST → highlighted HTML. |
 | `stylet-cli` | `build`, `watch`, `fmt`, `check`, `migrate`. Config: `stylet.toml` (entries, out dir, root, aliases, `resolve_custom_media`, fmt options). |
 | `stylet-lsp` | Language server (`tower-lsp`). |
-| `stylet-wasm` | `compile(src)`, `format(src)`, `highlight(src)` for the playground. |
+| `stylet-wasm` | `compile(src)`, `format(src)` for the playground. |
 | `editors/vscode`, `tree-sitter-stylet`, `docs/` | Editor integration, grammar, docs + playground. |
 
 Core crates never touch the real filesystem directly (VFS trait) so they build for `wasm32`.
@@ -193,7 +193,7 @@ Core crates never touch the real filesystem directly (VFS trait) so they build f
 6. **Migration** — lenient Stylus parser, static evaluator (vars, mixins, literal math/colors), axis shim,
    warnings report; verified against webapp (see Migration).
 7. **WASM + playground + docs**.
-8. **Editors** — TextMate grammar + VS Code extension, LSP, tree-sitter grammar, HTML highlighter.
+8. **Editors** — TextMate grammar + VS Code extension, LSP, tree-sitter grammar.
 9. **Release** — prebuilt binaries (GitHub releases, `cargo binstall`, Homebrew), crates.io.
 
 ## Project

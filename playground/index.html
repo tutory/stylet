@@ -20,11 +20,14 @@
   <main>
     <section class="pane">
       <h2>stylet</h2>
-      <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="stylet source"></textarea>
+      <div class="editor">
+        <pre id="highlight" aria-hidden="true"><code></code></pre>
+        <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="stylet source"></textarea>
+      </div>
     </section>
     <section class="pane">
       <h2>CSS</h2>
-      <pre id="output" aria-live="polite"></pre>
+      <pre id="output" aria-live="polite"><code></code></pre>
       <ul id="diagnostics"></ul>
     </section>
   </main>

@@ -547,13 +547,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "stylet-highlight"
-version = "0.0.0"
-dependencies = [
- "stylet-syntax",
-]
-
-[[package]]
 name = "stylet-lsp"
 version = "0.0.0"
 dependencies = [

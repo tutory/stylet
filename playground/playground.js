@@ -1,4 +1,22 @@
 import init, { compile, format, version } from './pkg/stylet_wasm.js'
+import stylet from './stylet-hljs.js'
+
+const HLJS = 'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es'
+
+/** highlight.js from the CDN; without it the playground works unhighlighted. */
+async function loadHighlighter() {
+  try {
+    const [{ default: hljs }, { default: css }] = await Promise.all([
+      import(`${HLJS}/core.min.js`),
+      import(`${HLJS}/languages/css.min.js`),
+    ])
+    hljs.registerLanguage('css', css)
+    hljs.registerLanguage('stylet', stylet)
+    return (code, language) => hljs.highlight(code, { language, ignoreIllegals: true }).value
+  } catch {
+    return null
+  }
+}
 
 const EXAMPLE = `// Placeholders are extended, nesting stays native CSS nesting.
 @custom-media --phone (width <= 600px)
@@ -30,7 +48,25 @@ $button {
 
 const $ = (id) => document.getElementById(id)
 const source = $('source')
-const output = $('output')
+const output = $('output').firstElementChild
+const highlight = $('highlight')
+let highlighter = null
+
+function render(element, code, language) {
+  if (highlighter) element.innerHTML = highlighter(code, language)
+  else element.textContent = code
+}
+
+function renderSource() {
+  // A trailing newline needs a character after it to take up space in the <pre>.
+  render(highlight.firstElementChild, source.value + ' ', 'stylet')
+  syncScroll()
+}
+
+function syncScroll() {
+  highlight.scrollTop = source.scrollTop
+  highlight.scrollLeft = source.scrollLeft
+}
 const diagnostics = $('diagnostics')
 const options = { minify: $('minify'), customMedia: $('customMedia'), sort: $('sort'), nested: $('nested') }
 
@@ -91,7 +127,8 @@ function showDiagnostics(list) {
 function update() {
   const text = source.value
   const result = compile(text, options.minify.checked, options.customMedia.checked)
-  output.textContent = result.css
+  render(output, result.css, 'css')
+  renderSource()
   showDiagnostics(result.diagnostics)
   try {
     localStorage.setItem('stylet-source', text)
@@ -102,6 +139,12 @@ await init()
 $('version').textContent = version()
 source.value = initialSource()
 update()
+loadHighlighter().then((h) => {
+  highlighter = h
+  document.body.classList.toggle('highlighted', h != null)
+  update()
+})
+source.addEventListener('scroll', syncScroll)
 
 source.addEventListener('input', update)
 for (const input of Object.values(options)) input.addEventListener('change', update)
