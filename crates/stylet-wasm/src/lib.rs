@@ -89,7 +89,7 @@ pub fn compile(src: &str, minify: bool, resolve_custom_media: bool) -> JsValue {
 
 /// Formats `src`: `{ code, diagnostics }`. `indent` is the number of spaces, 0 for tabs.
 #[wasm_bindgen]
-pub fn format(src: &str, indent: u8, sort_properties: bool, nested_blocks_first: bool) -> JsValue {
+pub fn format(src: &str, indent: u8, sort_properties: bool, nested_blocks_last: bool) -> JsValue {
     let options = stylet_fmt::Options {
         indent: if indent == 0 {
             stylet_fmt::Indent::Tabs
@@ -97,7 +97,7 @@ pub fn format(src: &str, indent: u8, sort_properties: bool, nested_blocks_first:
             stylet_fmt::Indent::Spaces(indent)
         },
         sort_properties,
-        nested_blocks_first,
+        nested_blocks_last,
         align_strings: true,
     };
     let index = LineIndex::new(src);

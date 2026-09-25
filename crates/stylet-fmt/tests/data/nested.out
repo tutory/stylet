@@ -1,6 +1,9 @@
 // options: nested
 .card {
   @extend $box
+  color: red
+  padding: 1rem
+  margin: 0 // trailing
 
   // the title
   .title {
@@ -14,8 +17,4 @@
   @media print {
     display: none
   }
-
-  color: red
-  padding: 1rem
-  margin: 0 // trailing
 }

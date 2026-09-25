@@ -33,7 +33,7 @@ fn fixtures() {
         let sort = flags.contains("sort");
         let options = Options {
             sort_properties: sort,
-            nested_blocks_first: flags.contains("nested"),
+            nested_blocks_last: flags.contains("nested"),
             align_strings: !flags.contains("no-align"),
             ..Options::default()
         };
@@ -46,7 +46,7 @@ fn fixtures() {
             path.display()
         );
         // Sorting and moving blocks reorder the output on purpose.
-        if !sort && !options.nested_blocks_first {
+        if !sort && !options.nested_blocks_last {
             let semicolons = src.contains(';');
             if !semicolons {
                 assert_eq!(

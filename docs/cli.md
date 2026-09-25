@@ -40,7 +40,7 @@ grid-template-areas: "header header"
                      "sidebar main"
 ```
 
-With `nested_blocks_first`, nested rules and at-rules with a block move above the
+With `nested_blocks_last`, nested rules and at-rules with a block move below the
 declarations of their block (comments directly above a block move with it,
 `@extend` stays first). This changes the output order, which matters only if a
 nested rule and a declaration of its parent apply to the same element — e.g. with
@@ -78,7 +78,7 @@ output = "public/dist/admin.css"
 [fmt]
 indent = 2              # spaces, or "tab"
 sort_properties = false # shorthands before longhands, otherwise alphabetical
-nested_blocks_first = false # nested rules/at-rules above the declarations
+nested_blocks_last = false # nested rules/at-rules below the declarations
 align_strings = true    # align continuation lines of strings (grid-template-areas)
 ```
 

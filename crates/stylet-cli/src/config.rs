@@ -47,7 +47,7 @@ pub struct Fmt {
     #[serde(default)]
     pub sort_properties: bool,
     #[serde(default)]
-    pub nested_blocks_first: bool,
+    pub nested_blocks_last: bool,
     /// Defaults to `true`.
     #[serde(default)]
     pub align_strings: Option<bool>,
@@ -73,7 +73,7 @@ impl Fmt {
         Ok(stylet_fmt::Options {
             indent,
             sort_properties: self.sort_properties,
-            nested_blocks_first: self.nested_blocks_first,
+            nested_blocks_last: self.nested_blocks_last,
             align_strings: self.align_strings.unwrap_or(true),
         })
     }

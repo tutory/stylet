@@ -27,10 +27,10 @@ pub struct Options {
     pub indent: Indent,
     /// Sort runs of declarations (see the `sort` module for the order).
     pub sort_properties: bool,
-    /// Move nested blocks (rules, placeholders, at-rules with a block) above the
+    /// Move nested blocks (rules, placeholders, at-rules with a block) below the
     /// declarations of their block. Comments directly above a block move with
     /// it; `@extend` and `@import` stay first.
-    pub nested_blocks_first: bool,
+    pub nested_blocks_last: bool,
     /// Align continuation lines that start with a string (`grid-template-areas`)
     /// to the first string's quote.
     pub align_strings: bool,
@@ -41,7 +41,7 @@ impl Default for Options {
         Self {
             indent: Indent::default(),
             sort_properties: false,
-            nested_blocks_first: false,
+            nested_blocks_last: false,
             align_strings: true,
         }
     }
@@ -116,8 +116,8 @@ impl Printer<'_> {
         if self.options.sort_properties {
             sort_declarations(&mut entries);
         }
-        if self.options.nested_blocks_first && in_block {
-            entries = nested_blocks_first(entries);
+        if self.options.nested_blocks_last && in_block {
+            entries = nested_blocks_last(entries);
         }
         for (i, entry) in entries.iter().enumerate() {
             if entry.blank_before && i > 0 {
@@ -322,9 +322,9 @@ enum Gap {
     Newline,
 }
 
-/// Stable partition: `@extend`/`@import` first, then nested blocks (with the
-/// comments directly above them), then everything else.
-fn nested_blocks_first(entries: Vec<Entry>) -> Vec<Entry> {
+/// Stable partition: `@extend`/`@import` first, then declarations and the
+/// rest, then nested blocks (with the comments directly above them).
+fn nested_blocks_last(entries: Vec<Entry>) -> Vec<Entry> {
     let is_block = |e: &Entry| {
         e.element.as_node().is_some_and(|n| match n.kind() {
             RULE | PLACEHOLDER => true,
@@ -362,11 +362,11 @@ fn nested_blocks_first(entries: Vec<Entry>) -> Vec<Entry> {
     }
     rest.append(&mut comments);
     if !blocks.is_empty() && !rest.is_empty() {
-        rest[0].blank_before = true;
+        blocks[0].blank_before = true;
     }
     let mut out = head;
-    out.append(&mut blocks);
     out.append(&mut rest);
+    out.append(&mut blocks);
     if let Some(first) = out.first_mut() {
         first.blank_before = false;
     }

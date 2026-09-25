@@ -14,6 +14,6 @@ assert.equal(broken.diagnostics[0].message, "`@import` isn't available in the pl
 assert.equal(broken.diagnostics[0].line, 2)
 
 assert.equal(format('.a{color:red;}', 2, false, false).code, '.a {\n  color: red\n}\n')
-assert.equal(format('.a {\n  x: 1\n  .b { y: 2 }\n}', 2, false, true).code, '.a {\n  .b {\n    y: 2\n  }\n\n  x: 1\n}\n')
+assert.equal(format('.a {\n  .b { y: 2 }\n  x: 1\n}', 2, false, true).code, '.a {\n  x: 1\n\n  .b {\n    y: 2\n  }\n}\n')
 assert.equal(format('.a {\n  color\n}', 2, false, false).code, undefined)
 console.log('ok')
