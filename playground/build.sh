@@ -8,5 +8,5 @@ cargo build --release -p stylet-wasm --target wasm32-unknown-unknown
 wasm-bindgen --target web --no-typescript --out-dir playground/pkg \
   target/wasm32-unknown-unknown/release/stylet_wasm.wasm
 cargo run --release -q -p stylet-cli -- build playground/playground.styl \
-  -o playground/playground.css --minify --resolve-custom-media
+  -o playground/playground.css --minify --resolve-custom-media --source-map
 echo "Built playground. Serve with: python3 -m http.server -d playground"
