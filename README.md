@@ -28,10 +28,16 @@ $btn {
 }
 ```
 
-Tooling: formatter, `stylet migrate` for existing Stylus code, VS Code extension, tree-sitter grammar,
-language server and a browser playground.
+Tooling: formatter, `stylet migrate` for existing Stylus code and a browser playground.
+Editor support (VS Code, tree-sitter, language server) is in progress.
 
-> **Status:** early development — nothing works yet. See [PLAN.md](PLAN.md).
+```sh
+stylet build src/index.styl -o dist/index.css
+stylet fmt --check
+stylet migrate client/index.styl --dry-run
+```
+
+See the [documentation](docs/README.md) and [PLAN.md](PLAN.md).
 
 ## License
 

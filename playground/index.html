@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stylet playground</title>
+  <link rel="stylesheet" href="playground.css">
+</head>
+<body>
+  <header>
+    <h1>stylet <span id="version"></span></h1>
+    <label><input type="checkbox" id="minify"> minify</label>
+    <label><input type="checkbox" id="customMedia"> resolve <code>@custom-media</code></label>
+    <label><input type="checkbox" id="sort"> sort properties</label>
+    <button id="format" type="button">Format</button>
+    <button id="share" type="button">Share</button>
+    <a href="https://github.com/tutory/stylet/tree/main/docs">Docs</a>
+  </header>
+  <main>
+    <section class="pane">
+      <h2>stylet</h2>
+      <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="stylet source"></textarea>
+    </section>
+    <section class="pane">
+      <h2>CSS</h2>
+      <pre id="output" aria-live="polite"></pre>
+      <ul id="diagnostics"></ul>
+    </section>
+  </main>
+  <script type="module" src="playground.js"></script>
+</body>
+</html>
