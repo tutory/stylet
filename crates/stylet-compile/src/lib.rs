@@ -5,6 +5,7 @@
 
 mod custom_media;
 mod emit;
+mod extend;
 mod source_map;
 mod text;
 mod url;

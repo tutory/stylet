@@ -1,0 +1,16 @@
+.early, .button, .link, :is(.button, .link) .icon, :is(.button, .link).small, .card {
+  padding: 4px;
+  &:hover {
+    color: blue;
+  }
+}
+
+.button, .link, :is(.button, .link) .icon {
+  color: white;
+}
+
+.button, .link {
+  color: red;
+}
+--- minified
+.early,.button,.link,:is(.button,.link) .icon,:is(.button,.link).small,.card{padding:4px;&:hover{color:blue;}}.button,.link,:is(.button,.link) .icon{color:white;}.button,.link{color:red;}

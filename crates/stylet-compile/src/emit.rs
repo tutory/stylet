@@ -1,15 +1,19 @@
 //! Writes the syntax tree as CSS, keeping nesting native and inlining imports.
 
 use crate::custom_media::CustomMedia;
+use crate::extend;
 use crate::source_map::Mapping;
 use crate::text::{self, Context, Piece, Pieces};
 use crate::url::{self, Rewrite};
 use crate::{Diagnostic, Options};
 use std::collections::HashSet;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use stylet_resolve::{FileId, FileSystem, Loader};
 use stylet_syntax::SyntaxKind::*;
-use stylet_syntax::ast::{AtRule, Declaration, Import, ImportLayer, Item, Rule, unquote};
+use stylet_syntax::ast::{
+    AtRule, Declaration, Extend, Import, ImportLayer, Item, Placeholder, Rule, unquote,
+};
 use stylet_syntax::{SyntaxElement, SyntaxNode, TextRange, TextSize};
 
 /// At-rules whose block contains rules or, inside a style rule, declarations.
@@ -72,6 +76,53 @@ impl Ctx {
     }
 }
 
+/// At-rules that make styles conditional; `@extend` can't cross them.
+const CONDITIONAL_RULES: &[&str] = &[
+    "media",
+    "supports",
+    "container",
+    "scope",
+    "starting-style",
+    "document",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum ScopeKind {
+    Style,
+    Placeholder(String),
+    /// Lowercase at-rule name without vendor prefix.
+    AtRule(String),
+}
+
+/// An enclosing block.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct Scope {
+    kind: ScopeKind,
+    head: String,
+}
+
+/// Who extends a placeholder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Extender {
+    Selector(String),
+    Placeholder(String),
+}
+
+struct PlaceholderDef {
+    name: String,
+    /// Output range of the whole rule, including the separator before it.
+    item: Range<usize>,
+    /// Output range of the head, replaced by the extenders' selectors.
+    head: Range<usize>,
+}
+
+struct ExtendUse {
+    target: String,
+    extender: Extender,
+    file: FileId,
+    range: TextRange,
+}
+
 pub struct Emitter<'a, F> {
     loader: &'a mut Loader<F>,
     options: &'a Options,
@@ -79,10 +130,14 @@ pub struct Emitter<'a, F> {
     custom_media: Option<CustomMedia>,
     /// File being emitted and the chain of files importing it.
     stack: Vec<FileId>,
-    /// Heads of the enclosing blocks, e.g. `[".a", "@media print"]`.
-    scope: Vec<String>,
+    /// Enclosing blocks, e.g. `.a` and `@media print`.
+    scope: Vec<Scope>,
     /// Imports already emitted, per file and scope.
-    imported: HashSet<(FileId, Vec<String>)>,
+    imported: HashSet<(FileId, Vec<Scope>)>,
+    /// Output offset where the current item (including its separator) starts.
+    item_start: usize,
+    placeholders: Vec<PlaceholderDef>,
+    extends: Vec<ExtendUse>,
     pub out: String,
     pub mappings: Vec<Mapping>,
     pub diagnostics: Vec<Diagnostic>,
@@ -102,6 +157,9 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             stack: Vec::new(),
             scope: Vec::new(),
             imported: HashSet::new(),
+            item_start: 0,
+            placeholders: Vec::new(),
+            extends: Vec::new(),
             out: String::new(),
             mappings: Vec::new(),
             diagnostics: Vec::new(),
@@ -111,6 +169,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
     }
 
     pub fn finish(&mut self) {
+        self.resolve_placeholders();
         if !self.options.minify && !self.out.is_empty() {
             self.out.push('\n');
         }
@@ -205,6 +264,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
                 self.out.push('\n');
             }
             let before_item = self.out.len();
+            self.item_start = start;
             match item {
                 Ok(item) => self.item(item, ctx, depth),
                 Err(comment) => {
@@ -240,13 +300,8 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             Item::Rule(rule) => self.rule(&rule, ctx, depth),
             Item::AtRule(rule) => self.at_rule(&rule, ctx, depth),
             Item::Import(import) => self.import(&import, ctx, depth),
-            Item::Placeholder(p) => self.error(
-                p.syntax().text_range(),
-                "placeholders aren't implemented yet",
-            ),
-            Item::Extend(e) => {
-                self.error(e.syntax().text_range(), "`@extend` isn't implemented yet")
-            }
+            Item::Placeholder(p) => self.placeholder(&p, ctx, depth),
+            Item::Extend(e) => self.extend(&e, ctx),
         }
     }
 
@@ -301,10 +356,147 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         };
         let head = text::serialize(selector.syntax(), Context::Selector, self.options.minify);
         if let Some(block) = rule.block() {
-            self.block(head, range.start(), depth, true, |this| {
+            self.block(ScopeKind::Style, head, range.start(), depth, true, |this| {
                 this.items(block.syntax(), inner, depth + 1)
             });
         }
+    }
+
+    fn placeholder(&mut self, placeholder: &Placeholder, ctx: Ctx, depth: usize) {
+        let range = placeholder.syntax().text_range();
+        let (Some(name), Some(block)) = (placeholder.name(), placeholder.block()) else {
+            return;
+        };
+        let name = name.text().to_string();
+        if placeholder
+            .syntax()
+            .parent()
+            .is_none_or(|p| p.kind() != ROOT)
+        {
+            return; // nested in a block: already a syntax error
+        }
+        if ctx != Ctx::Root || !self.scope.is_empty() {
+            return self.error(
+                range,
+                "placeholders must be defined at the top level of a file imported at the top level",
+            );
+        }
+        if self.placeholders.iter().any(|p| p.name == name) {
+            return self.error(range, format!("placeholder `{name}` is already defined"));
+        }
+        let item_start = self.item_start;
+        let kind = ScopeKind::Placeholder(name.clone());
+        let head = self.block(kind, name.clone(), range.start(), depth, true, |this| {
+            this.items(block.syntax(), Ctx::Style, depth + 1)
+        });
+        if let Some(head) = head {
+            self.placeholders.push(PlaceholderDef {
+                name,
+                item: item_start..self.out.len(),
+                head,
+            });
+        }
+    }
+
+    fn extend(&mut self, extend: &Extend, ctx: Ctx) {
+        let range = extend.syntax().text_range();
+        if !ctx.in_style() {
+            return self.error(range, "`@extend` must be inside a rule");
+        }
+        let mut selector: Option<String> = None;
+        let mut placeholder: Option<String> = None;
+        for scope in &self.scope {
+            match &scope.kind {
+                ScopeKind::AtRule(name) if CONDITIONAL_RULES.contains(&name.as_str()) => {
+                    let message = format!("`@extend` can't be used inside `@{name}`");
+                    return self.error(range, message);
+                }
+                ScopeKind::AtRule(_) => {}
+                ScopeKind::Placeholder(name) => placeholder = Some(name.clone()),
+                ScopeKind::Style if placeholder.is_some() => {
+                    return self.error(
+                        range,
+                        "`@extend` inside a nested rule of a placeholder isn't supported",
+                    );
+                }
+                ScopeKind::Style => {
+                    let separator = if self.options.minify { "," } else { ", " };
+                    selector = Some(match selector {
+                        Some(parent) => extend::nest(&parent, &scope.head, separator),
+                        None => scope.head.clone(),
+                    });
+                }
+            }
+        }
+        let extender = match (placeholder, selector) {
+            (Some(name), _) => Extender::Placeholder(name),
+            (None, Some(selector)) => Extender::Selector(selector),
+            (None, None) => return self.error(range, "`@extend` must be inside a rule"),
+        };
+        let file = self.file();
+        for target in extend.targets() {
+            self.extends.push(ExtendUse {
+                target: target.text().to_string(),
+                extender: extender.clone(),
+                file,
+                range,
+            });
+        }
+    }
+
+    /// Fills in each placeholder's selector list, or removes unused placeholders.
+    fn resolve_placeholders(&mut self) {
+        for use_ in &self.extends {
+            if !self.placeholders.iter().any(|p| p.name == use_.target) {
+                self.diagnostics.push(Diagnostic::error(
+                    format!("unknown placeholder `{}`", use_.target),
+                    Some(use_.file),
+                    use_.range,
+                ));
+            }
+        }
+        let separator = if self.options.minify { "," } else { ", " };
+        let edits = self
+            .placeholders
+            .iter()
+            .map(|def| {
+                let selectors = self.selectors_of(&def.name, &mut Vec::new());
+                if selectors.is_empty() {
+                    (def.item.clone(), String::new())
+                } else {
+                    (def.head.clone(), selectors.join(separator))
+                }
+            })
+            .collect();
+        extend::apply_edits(&mut self.out, &mut self.mappings, edits);
+        let leading = self.out.len() - self.out.trim_start_matches('\n').len();
+        if leading > 0 {
+            extend::apply_edits(
+                &mut self.out,
+                &mut self.mappings,
+                vec![(0..leading, String::new())],
+            );
+        }
+    }
+
+    /// Selectors extending placeholder `name`, directly or through other placeholders.
+    fn selectors_of(&self, name: &str, visiting: &mut Vec<String>) -> Vec<String> {
+        visiting.push(name.to_string());
+        let mut out: Vec<String> = Vec::new();
+        for use_ in self.extends.iter().filter(|u| u.target == name) {
+            let found = match &use_.extender {
+                Extender::Selector(selector) => vec![selector.clone()],
+                Extender::Placeholder(p) if !visiting.contains(p) => self.selectors_of(p, visiting),
+                Extender::Placeholder(_) => Vec::new(),
+            };
+            for selector in found {
+                if !out.contains(&selector) {
+                    out.push(selector);
+                }
+            }
+        }
+        visiting.pop();
+        out
     }
 
     fn at_rule(&mut self, rule: &AtRule, ctx: Ctx, depth: usize) {
@@ -370,7 +562,8 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         } else {
             (ctx, false)
         };
-        self.block(head, range.start(), depth, drop_empty, |this| {
+        let kind = ScopeKind::AtRule(base.to_string());
+        self.block(kind, head, range.start(), depth, drop_empty, |this| {
             this.items(block.syntax(), inner, depth + 1)
         });
     }
@@ -405,7 +598,10 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             ImportLayer::Named(name) => format!("@layer {name}"),
         });
         let mut key = self.scope.clone();
-        key.extend(layer.clone());
+        key.extend(layer.clone().map(|head| Scope {
+            kind: ScopeKind::AtRule("layer".into()),
+            head,
+        }));
         if !self.imported.insert((file, key)) {
             return;
         }
@@ -414,7 +610,8 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
                 let inner = Ctx::Group {
                     in_style: ctx.in_style(),
                 };
-                self.block(head, range.start(), depth, true, |this| {
+                let kind = ScopeKind::AtRule("layer".into());
+                self.block(kind, head, range.start(), depth, true, |this| {
                     this.emit_file(file, inner, depth + 1)
                 });
             }
@@ -422,32 +619,37 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         }
     }
 
-    /// Writes `head { … }`. With `drop_empty`, nothing is written for an empty block.
+    /// Writes `head { … }` and returns the head's output range. With `drop_empty`,
+    /// nothing is written for an empty block and `None` is returned.
     fn block(
         &mut self,
+        kind: ScopeKind,
         head: String,
         at: TextSize,
         depth: usize,
         drop_empty: bool,
         body: impl FnOnce(&mut Self),
-    ) {
+    ) -> Option<Range<usize>> {
         let start = self.out.len();
         self.line(depth);
         self.map(at);
+        let head_range = self.out.len()..self.out.len() + head.len();
         self.out += &head;
         self.out += if self.options.minify { "{" } else { " {" };
         let body_start = self.out.len();
-        self.scope.push(head);
+        self.scope.push(Scope { kind, head });
         body(self);
         self.scope.pop();
         if self.out.len() == body_start {
             if drop_empty {
-                return self.truncate(start);
+                self.truncate(start);
+                return None;
             }
         } else {
             self.line(depth);
         }
         self.out.push('}');
+        Some(head_range)
     }
 
     /// Rebases relative `url(…)`s and inlines `?inline` ones.

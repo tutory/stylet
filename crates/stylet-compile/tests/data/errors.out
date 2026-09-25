@@ -10,11 +10,15 @@
 
 @font-face {}
 
+.b {
+  color: red;
+}
+
 .c {
   color: red;
 }
 --- minified
-& .a{color:red;}@keyframes k{from{color:red;}}@font-face{}.c{color:red;}
+& .a{color:red;}@keyframes k{from{color:red;}}@font-face{}.b{color:red;}.c{color:red;}
 --- diagnostics
 Error 0..10 "color: red": declarations must be inside a rule
 Error 11..15 "& .a": `&` needs a parent rule
@@ -25,6 +29,4 @@ Error 142..157 "@keyframes x {}": `@keyframes` can't be nested inside a style ru
 Error 178..188 "color: red": `@keyframes` may only contain keyframe selectors
 Error 229..231 ".a": style rules aren't allowed here
 Error 250..261 "@import 'x'": can't find `x` (tried /x.styl, /x/index.styl)
-Error 262..279 "$p { color: red }": placeholders aren't implemented yet
-Error 285..295 "@extend $p": `@extend` isn't implemented yet
 Error 313..314 ";": stylet doesn't use semicolons; end the line instead

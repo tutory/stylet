@@ -1,0 +1,20 @@
+$x { color: red }
+
+.a {
+  @media print {
+    @extend $x
+  }
+  @extend $missing
+}
+
+@extend $x
+
+$x { color: blue }
+
+$y {
+  .nested { @extend $x }
+}
+
+@media print {
+  $z { color: red }
+}

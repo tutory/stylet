@@ -1,0 +1,34 @@
+$unused {
+  color: gray
+}
+
+.early {
+  @extend $btn
+}
+
+$btn {
+  padding: 4px
+  &:hover { color: blue }
+}
+
+$primary {
+  @extend $btn
+  color: white
+}
+
+.button, .link {
+  @extend $primary
+  color: red
+
+  &.small {
+    @extends $btn
+  }
+
+  .icon {
+    @extend $btn, $primary
+  }
+}
+
+@layer components {
+  .card { @extend $btn }
+}
