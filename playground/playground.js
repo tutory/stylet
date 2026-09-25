@@ -113,13 +113,25 @@ source.addEventListener('keydown', (event) => {
   update()
 })
 
+function flash(button, text) {
+  const label = button.dataset.label ?? button.textContent
+  button.dataset.label = label
+  button.textContent = text
+  clearTimeout(button.timer)
+  button.timer = setTimeout(() => (button.textContent = label), 1500)
+}
+
 $('format').addEventListener('click', () => {
   const result = format(source.value, 2, options.sort.checked)
-  if (result.code != null) {
+  if (result.code == null) {
+    showDiagnostics(result.diagnostics)
+    flash($('format'), 'Fix errors first')
+  } else if (result.code === source.value) {
+    flash($('format'), 'Already formatted')
+  } else {
     source.value = result.code
     update()
-  } else {
-    showDiagnostics(result.diagnostics)
+    flash($('format'), 'Formatted')
   }
 })
 
@@ -127,9 +139,8 @@ $('share').addEventListener('click', async () => {
   history.replaceState(null, '', `#${encode(source.value)}`)
   try {
     await navigator.clipboard.writeText(location.href)
-    $('share').textContent = 'Link copied'
+    flash($('share'), 'Link copied')
   } catch {
-    $('share').textContent = 'Link in address bar'
+    flash($('share'), 'Link in address bar')
   }
-  setTimeout(() => ($('share').textContent = 'Share'), 1500)
 })
