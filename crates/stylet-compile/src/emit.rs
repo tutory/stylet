@@ -1,11 +1,16 @@
-//! Writes the syntax tree as CSS, keeping nesting native.
+//! Writes the syntax tree as CSS, keeping nesting native and inlining imports.
 
 use crate::custom_media::CustomMedia;
-use crate::text::{self, Context};
+use crate::source_map::Mapping;
+use crate::text::{self, Context, Piece, Pieces};
+use crate::url::{self, Rewrite};
 use crate::{Diagnostic, Options};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use stylet_resolve::{FileId, FileSystem, Loader};
 use stylet_syntax::SyntaxKind::*;
-use stylet_syntax::ast::{AtRule, Declaration, Item, Rule};
-use stylet_syntax::{SyntaxElement, SyntaxNode, TextRange};
+use stylet_syntax::ast::{AtRule, Declaration, Import, ImportLayer, Item, Rule, unquote};
+use stylet_syntax::{SyntaxElement, SyntaxNode, TextRange, TextSize};
 
 /// At-rules whose block contains rules or, inside a style rule, declarations.
 const GROUP_RULES: &[&str] = &[
@@ -67,68 +72,152 @@ impl Ctx {
     }
 }
 
-pub struct Emitter<'a> {
+pub struct Emitter<'a, F> {
+    loader: &'a mut Loader<F>,
     options: &'a Options,
+    out_dir: PathBuf,
     custom_media: Option<CustomMedia>,
-    out: String,
+    /// File being emitted and the chain of files importing it.
+    stack: Vec<FileId>,
+    /// Heads of the enclosing blocks, e.g. `[".a", "@media print"]`.
+    scope: Vec<String>,
+    /// Imports already emitted, per file and scope.
+    imported: HashSet<(FileId, Vec<String>)>,
+    pub out: String,
+    pub mappings: Vec<Mapping>,
     pub diagnostics: Vec<Diagnostic>,
+    /// Every file read: imports and inlined assets.
+    pub dependencies: Vec<PathBuf>,
+    /// Style files that were emitted, in order.
+    pub sources: Vec<FileId>,
 }
 
-impl<'a> Emitter<'a> {
-    pub fn new(options: &'a Options, custom_media: Option<CustomMedia>) -> Self {
+impl<'a, F: FileSystem> Emitter<'a, F> {
+    pub fn new(loader: &'a mut Loader<F>, options: &'a Options, out_dir: PathBuf) -> Self {
         Self {
+            loader,
             options,
-            custom_media,
+            out_dir,
+            custom_media: options.resolve_custom_media.then(CustomMedia::default),
+            stack: Vec::new(),
+            scope: Vec::new(),
+            imported: HashSet::new(),
             out: String::new(),
+            mappings: Vec::new(),
             diagnostics: Vec::new(),
+            dependencies: Vec::new(),
+            sources: Vec::new(),
         }
     }
 
-    pub fn finish(mut self) -> (String, Vec<Diagnostic>) {
+    pub fn finish(&mut self) {
         if !self.options.minify && !self.out.is_empty() {
             self.out.push('\n');
         }
-        (self.out, self.diagnostics)
+    }
+
+    fn file(&self) -> FileId {
+        *self.stack.last().expect("emitting outside of a file")
     }
 
     fn error(&mut self, range: TextRange, message: impl Into<String>) {
-        self.diagnostics.push(Diagnostic::error(message, range));
+        let file = self.file();
+        self.diagnostics
+            .push(Diagnostic::error(message, Some(file), range));
     }
 
-    pub fn root(&mut self, root: &SyntaxNode) {
-        self.items(root, Ctx::Root, 0);
+    /// Records that the output at the current position comes from `offset`.
+    fn map(&mut self, offset: TextSize) {
+        if !self.options.source_map {
+            return;
+        }
+        let file = self.file();
+        let src = self.loader.file(file).line_index.line_col(offset);
+        self.mappings.push(Mapping {
+            out: self.out.len(),
+            file,
+            src,
+        });
+    }
+
+    fn truncate(&mut self, len: usize) {
+        self.out.truncate(len);
+        while self.mappings.last().is_some_and(|m| m.out >= len) {
+            self.mappings.pop();
+        }
+    }
+
+    pub fn entry(&mut self, file: FileId) {
+        self.dependencies.push(self.loader.file(file).path.clone());
+        self.emit_file(file, Ctx::Root, 0);
+    }
+
+    fn emit_file(&mut self, file: FileId, ctx: Ctx, depth: usize) {
+        if !self.sources.contains(&file) {
+            self.sources.push(file);
+        }
+        self.stack.push(file);
+        let source = self.loader.file(file);
+        let root = source.parse.as_ref().map(|p| p.syntax());
+        match root {
+            Some(root) => self.items(&root, ctx, depth),
+            None => {
+                let css = source.text.trim().to_string();
+                if !css.is_empty() {
+                    self.line(depth);
+                    self.map(0.into());
+                    self.out += &css;
+                }
+            }
+        }
+        self.stack.pop();
     }
 
     fn items(&mut self, parent: &SyntaxNode, ctx: Ctx, depth: usize) {
         // Root items are separated by a blank line when either side has a block.
         let mut prev_had_block: Option<bool> = None;
         for element in parent.children_with_tokens() {
-            let start = self.out.len();
-            let has_block = match &element {
+            let (item, has_block) = match element {
                 SyntaxElement::Token(t) if t.kind() == BLOCK_COMMENT => {
                     if self.options.minify && !t.text().starts_with("/*!") {
                         continue;
                     }
-                    self.line(depth);
-                    self.out += t.text();
-                    false
+                    (Err(t), false)
                 }
-                SyntaxElement::Node(n) => match Item::cast(n.clone()) {
-                    Some(item) => self.item(item, ctx, depth),
+                SyntaxElement::Node(n) => match Item::cast(n) {
+                    Some(item) => {
+                        let has_block = match &item {
+                            Item::Rule(_) | Item::Placeholder(_) | Item::Import(_) => true,
+                            Item::AtRule(rule) => rule.block().is_some(),
+                            Item::Declaration(_) | Item::Extend(_) => false,
+                        };
+                        (Ok(item), has_block)
+                    }
                     None => continue,
                 },
                 SyntaxElement::Token(_) => continue,
             };
-            if self.out.len() == start {
-                continue;
-            }
+            let start = self.out.len();
             if depth == 0
                 && !self.options.minify
                 && prev_had_block.is_some_and(|prev| prev || has_block)
             {
-                self.out.insert(start, '\n');
+                self.out.push('\n');
             }
-            prev_had_block = Some(has_block);
+            let before_item = self.out.len();
+            match item {
+                Ok(item) => self.item(item, ctx, depth),
+                Err(comment) => {
+                    self.line(depth);
+                    self.map(comment.text_range().start());
+                    self.out += comment.text();
+                }
+            }
+            if self.out.len() == before_item {
+                self.truncate(start);
+            } else {
+                prev_had_block = Some(has_block);
+            }
         }
     }
 
@@ -145,35 +234,18 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    /// Emits one item; returns whether it has a block.
-    fn item(&mut self, item: Item, ctx: Ctx, depth: usize) -> bool {
+    fn item(&mut self, item: Item, ctx: Ctx, depth: usize) {
         match item {
-            Item::Declaration(decl) => {
-                self.declaration(&decl, ctx, depth);
-                false
-            }
-            Item::Rule(rule) => {
-                self.rule(&rule, ctx, depth);
-                true
-            }
+            Item::Declaration(decl) => self.declaration(&decl, ctx, depth),
+            Item::Rule(rule) => self.rule(&rule, ctx, depth),
             Item::AtRule(rule) => self.at_rule(&rule, ctx, depth),
-            Item::Import(import) => {
-                self.error(
-                    import.syntax().text_range(),
-                    "`@import` isn't supported when compiling a single string",
-                );
-                false
-            }
-            Item::Placeholder(p) => {
-                self.error(
-                    p.syntax().text_range(),
-                    "placeholders aren't implemented yet",
-                );
-                false
-            }
+            Item::Import(import) => self.import(&import, ctx, depth),
+            Item::Placeholder(p) => self.error(
+                p.syntax().text_range(),
+                "placeholders aren't implemented yet",
+            ),
             Item::Extend(e) => {
-                self.error(e.syntax().text_range(), "`@extend` isn't implemented yet");
-                false
+                self.error(e.syntax().text_range(), "`@extend` isn't implemented yet")
             }
         }
     }
@@ -191,11 +263,15 @@ impl<'a> Emitter<'a> {
         let Some(property) = decl.property() else {
             return;
         };
-        let value = decl
-            .value()
-            .map(|v| text::serialize(v.syntax(), Context::Value, self.options.minify))
-            .unwrap_or_default();
+        let value = match decl.value() {
+            Some(v) => {
+                let pieces = self.rewrite_urls(text::pieces(v.syntax()), v.syntax().text_range());
+                text::join(&pieces, Context::Value, self.options.minify)
+            }
+            None => String::new(),
+        };
         self.line(depth);
+        self.map(property.text_range().start());
         self.out += property.text();
         self.out += if self.options.minify { ":" } else { ": " };
         self.out += &value;
@@ -206,11 +282,9 @@ impl<'a> Emitter<'a> {
         let Some(selector) = rule.selector() else {
             return;
         };
+        let range = selector.syntax().text_range();
         if ctx == Ctx::Declarations {
-            self.error(
-                selector.syntax().text_range(),
-                "style rules aren't allowed here",
-            );
+            self.error(range, "style rules aren't allowed here");
             return;
         }
         let has_amp = selector
@@ -218,39 +292,42 @@ impl<'a> Emitter<'a> {
             .descendants_with_tokens()
             .any(|e| e.kind() == AMP);
         if has_amp && !ctx.in_style() && ctx != Ctx::Keyframes {
-            self.error(selector.syntax().text_range(), "`&` needs a parent rule");
+            self.error(range, "`&` needs a parent rule");
         }
         let inner = if ctx == Ctx::Keyframes {
             Ctx::Declarations
         } else {
             Ctx::Style
         };
-        let text = text::serialize(selector.syntax(), Context::Selector, self.options.minify);
+        let head = text::serialize(selector.syntax(), Context::Selector, self.options.minify);
         if let Some(block) = rule.block() {
-            self.block(&text, block.syntax(), inner, depth, true);
+            self.block(head, range.start(), depth, true, |this| {
+                this.items(block.syntax(), inner, depth + 1)
+            });
         }
     }
 
-    /// Returns whether the at-rule has a block.
-    fn at_rule(&mut self, rule: &AtRule, ctx: Ctx, depth: usize) -> bool {
+    fn at_rule(&mut self, rule: &AtRule, ctx: Ctx, depth: usize) {
         let name = rule.name().to_ascii_lowercase();
         let base = name.strip_prefix("-webkit-").unwrap_or(&name);
         let range = rule.syntax().text_range();
 
         if ctx.in_style() && TOP_LEVEL_ONLY.contains(&base) {
-            self.error(
+            return self.error(
                 range,
                 format!("`@{name}` can't be nested inside a style rule"),
             );
-            return false;
         }
-        if base == "custom-media" {
-            if ctx != Ctx::Root {
-                self.error(range, "`@custom-media` must be at the top level");
+        if base == "custom-media" && ctx != Ctx::Root {
+            return self.error(range, "`@custom-media` must be at the top level");
+        }
+        if base == "custom-media"
+            && let Some(media) = &mut self.custom_media
+        {
+            if let Err(message) = media.define(rule) {
+                self.error(range, message);
             }
-            if self.custom_media.is_some() {
-                return false;
-            }
+            return;
         }
 
         let mut prelude = rule
@@ -274,9 +351,10 @@ impl<'a> Emitter<'a> {
 
         let Some(block) = rule.block() else {
             self.line(depth);
+            self.map(range.start());
             self.out += &head;
             self.out.push(';');
-            return false;
+            return;
         };
         let (inner, drop_empty) = if GROUP_RULES.contains(&base) {
             (
@@ -292,26 +370,161 @@ impl<'a> Emitter<'a> {
         } else {
             (ctx, false)
         };
-        self.block(&head, block.syntax(), inner, depth, drop_empty);
-        true
+        self.block(head, range.start(), depth, drop_empty, |this| {
+            this.items(block.syntax(), inner, depth + 1)
+        });
+    }
+
+    fn import(&mut self, import: &Import, ctx: Ctx, depth: usize) {
+        let range = import.syntax().text_range();
+        let Some(spec) = import.path() else { return };
+        let from = self.loader.file(self.file()).path.clone();
+        let file = match self
+            .loader
+            .resolve(&spec, &from)
+            .and_then(|path| self.loader.load(&path))
+        {
+            Ok(file) => file,
+            Err(e) => return self.error(range, e.to_string()),
+        };
+        if let Some(i) = self.stack.iter().position(|&f| f == file) {
+            let mut chain: Vec<_> = self.stack[i..]
+                .iter()
+                .map(|&f| self.loader.file(f).path.display().to_string())
+                .collect();
+            chain.push(self.loader.file(file).path.display().to_string());
+            return self.error(range, format!("import cycle: {}", chain.join(" → ")));
+        }
+        let path = self.loader.file(file).path.clone();
+        if !self.dependencies.contains(&path) {
+            self.dependencies.push(path);
+        }
+
+        let layer = import.layer().map(|layer| match layer {
+            ImportLayer::Anonymous => "@layer".to_string(),
+            ImportLayer::Named(name) => format!("@layer {name}"),
+        });
+        let mut key = self.scope.clone();
+        key.extend(layer.clone());
+        if !self.imported.insert((file, key)) {
+            return;
+        }
+        match layer {
+            Some(head) => {
+                let inner = Ctx::Group {
+                    in_style: ctx.in_style(),
+                };
+                self.block(head, range.start(), depth, true, |this| {
+                    this.emit_file(file, inner, depth + 1)
+                });
+            }
+            None => self.emit_file(file, ctx, depth),
+        }
     }
 
     /// Writes `head { … }`. With `drop_empty`, nothing is written for an empty block.
-    fn block(&mut self, head: &str, block: &SyntaxNode, ctx: Ctx, depth: usize, drop_empty: bool) {
+    fn block(
+        &mut self,
+        head: String,
+        at: TextSize,
+        depth: usize,
+        drop_empty: bool,
+        body: impl FnOnce(&mut Self),
+    ) {
         let start = self.out.len();
         self.line(depth);
-        self.out += head;
+        self.map(at);
+        self.out += &head;
         self.out += if self.options.minify { "{" } else { " {" };
-        let body = self.out.len();
-        self.items(block, ctx, depth + 1);
-        if self.out.len() == body {
+        let body_start = self.out.len();
+        self.scope.push(head);
+        body(self);
+        self.scope.pop();
+        if self.out.len() == body_start {
             if drop_empty {
-                self.out.truncate(start);
-                return;
+                return self.truncate(start);
             }
         } else {
             self.line(depth);
         }
         self.out.push('}');
     }
+
+    /// Rebases relative `url(…)`s and inlines `?inline` ones.
+    fn rewrite_urls(&mut self, pieces: Pieces, range: TextRange) -> Pieces {
+        let file_dir = self
+            .loader
+            .file(self.file())
+            .path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default();
+        let mut out = Pieces::with_capacity(pieces.len());
+        let mut i = 0;
+        while i < pieces.len() {
+            let Some((url, quote, end)) = url_at(&pieces, i) else {
+                out.push(pieces[i].clone());
+                i += 1;
+                continue;
+            };
+            let replacement = match url::rewrite(&url, &file_dir, &self.out_dir) {
+                Rewrite::Keep => None,
+                Rewrite::Rebased(url) => Some(url),
+                Rewrite::Inline(path) => match self.loader.fs().read(&path) {
+                    Ok(bytes) => {
+                        self.dependencies.push(path.clone());
+                        Some(url::data_uri(&path, &bytes))
+                    }
+                    Err(e) => {
+                        self.error(range, format!("can't inline {}: {e}", path.display()));
+                        None
+                    }
+                },
+            };
+            match replacement {
+                Some(url) => out.push(Some(Piece {
+                    kind: URL,
+                    text: format!("url({quote}{url}{quote})"),
+                })),
+                None => out.extend(pieces[i..end].iter().cloned()),
+            }
+            i = end;
+        }
+        out
+    }
+}
+
+/// A `url(x)` token or `url("x")` function at `i`: the URL, its quote and the end index.
+fn url_at(pieces: &Pieces, i: usize) -> Option<(String, &'static str, usize)> {
+    let piece = pieces[i].as_ref()?;
+    if piece.kind == URL {
+        let inner = piece.text[4..piece.text.len() - 1].trim();
+        return Some((inner.to_string(), "", i + 1));
+    }
+    if piece.kind != IDENT || !piece.text.eq_ignore_ascii_case("url") {
+        return None;
+    }
+    let significant = |j: usize| pieces.get(j).and_then(|p| p.as_ref());
+    let skip_space = |j: usize| {
+        if matches!(pieces.get(j), Some(None)) {
+            j + 1
+        } else {
+            j
+        }
+    };
+    if significant(i + 1)?.kind != L_PAREN {
+        return None;
+    }
+    let string_at = skip_space(i + 2);
+    let string = significant(string_at).filter(|p| p.kind == STRING)?;
+    let close = skip_space(string_at + 1);
+    if significant(close)?.kind != R_PAREN {
+        return None;
+    }
+    let quote = if string.text.starts_with('\'') {
+        "'"
+    } else {
+        "\""
+    };
+    Some((unquote(&string.text).to_string(), quote, close + 1))
 }

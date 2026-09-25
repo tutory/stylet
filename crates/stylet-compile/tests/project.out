@@ -1,0 +1,49 @@
+=== env/a/index.styl
+@layer base {
+  html {
+    margin: 0;
+  }
+}
+
+.button {
+  background: url(../client/img/bg.png) no-repeat;
+  mask: url("data:image/svg+xml;base64,PHN2Zy8+");
+  cursor: url('https://x.y/c.cur'), auto;
+}
+
+.dashboard {
+  color: red;
+  &:hover {
+    color: blue;
+  }
+}
+
+.other {
+  color: red;
+  &:hover {
+    color: blue;
+  }
+}
+
+.legacy { color: green; }
+--- diagnostics
+--- dependencies
+env/a/index.styl
+client/base.styl
+client/components/index.styl
+client/components/button.styl
+client/img/icon.svg
+env/a/scoped.styl
+client/legacy.css
+--- source map
+{"version":3,"file":"index.css","sources":["../env/a/index.styl","../client/base.styl","../client/components/button.styl","../env/a/scoped.styl","../client/legacy.css"],"sourcesContent":["@import '/client/base' layer(base)\n@import '@/components'\n@import '@/components'\n\n.dashboard {\n  @import './scoped'\n  @import './scoped'\n}\n\n.other {\n  @import './scoped'\n}\n\n@import '/client/legacy.css'\n","html { margin: 0 }\n",".button {\n  background: url(../img/bg.png) no-repeat\n  mask: url(\"../img/icon.svg?inline\")\n  cursor: url('https://x.y/c.cur'), auto\n}\n","color: red\n&:hover { color: blue }\n",".legacy { color: green; }\n"],"names":[],"mappings":"AAAA;ECAA;IAAO;;;;ACAP;EACE;EACA;EACA;;;AFCF;EGJA;EACA;IAAU;;;;AHQV;EGTA;EACA;IAAU;;;;ACDV"}
+=== env/a/errors.styl
+--- diagnostics
+env/a/errors.styl: can't find `./missing` (tried env/a/missing.styl, env/a/missing/index.styl)
+env/a/cycle-b.styl: import cycle: env/a/cycle-a.styl → env/a/cycle-b.styl → env/a/cycle-a.styl
+--- dependencies
+env/a/errors.styl
+env/a/cycle-a.styl
+env/a/cycle-b.styl
+--- source map
+{"version":3,"file":"index.css","sources":[],"sourcesContent":[],"names":[],"mappings":""}

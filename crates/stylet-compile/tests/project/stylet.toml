@@ -1,0 +1,9 @@
+[aliases]
+"@/" = "client"
+
+[build]
+source_map = true
+
+[[entry]]
+input = "env/a/index.styl"
+output = "public/index.css"

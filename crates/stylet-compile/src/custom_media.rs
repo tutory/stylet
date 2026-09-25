@@ -4,7 +4,6 @@ use crate::text::{Piece, Pieces, pieces};
 use std::collections::HashMap;
 use stylet_syntax::SyntaxKind::*;
 use stylet_syntax::ast::AtRule;
-use stylet_syntax::{SyntaxNode, TextRange};
 
 #[derive(Debug, Default)]
 pub struct CustomMedia {
@@ -76,20 +75,6 @@ impl CustomMedia {
         }
         Ok(out)
     }
-}
-
-/// Collects all top-level `@custom-media` definitions of `root`.
-pub fn collect(root: &SyntaxNode, errors: &mut Vec<(TextRange, String)>) -> CustomMedia {
-    let mut media = CustomMedia::default();
-    for node in root.children() {
-        if let Some(rule) = AtRule::cast(node)
-            && rule.name().eq_ignore_ascii_case("custom-media")
-            && let Err(message) = media.define(&rule)
-        {
-            errors.push((rule.syntax().text_range(), message));
-        }
-    }
-    media
 }
 
 fn piece(kind: stylet_syntax::SyntaxKind, text: &str) -> Option<Piece> {

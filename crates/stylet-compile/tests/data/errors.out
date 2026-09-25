@@ -24,7 +24,7 @@ Error 108..139 "@custom-media --x (width < 1px)": `@custom-media` can't be neste
 Error 142..157 "@keyframes x {}": `@keyframes` can't be nested inside a style rule
 Error 178..188 "color: red": `@keyframes` may only contain keyframe selectors
 Error 229..231 ".a": style rules aren't allowed here
-Error 250..261 "@import 'x'": `@import` isn't supported when compiling a single string
+Error 250..261 "@import 'x'": can't find `x` (tried /x.styl, /x/index.styl)
 Error 262..279 "$p { color: red }": placeholders aren't implemented yet
 Error 285..295 "@extend $p": `@extend` isn't implemented yet
 Error 313..314 ";": stylet doesn't use semicolons; end the line instead
