@@ -1,0 +1,17 @@
+[package]
+name = "stylet-lsp"
+description = "Language server for stylet"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+stylet-syntax.workspace = true
+stylet-resolve.workspace = true
+stylet-compile.workspace = true
+stylet-fmt.workspace = true

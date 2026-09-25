@@ -1,0 +1,21 @@
+[package]
+name = "stylet-cli"
+description = "Command-line interface for stylet"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "stylet"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+stylet-resolve.workspace = true
+stylet-compile.workspace = true
+stylet-fmt.workspace = true
+stylet-migrate.workspace = true

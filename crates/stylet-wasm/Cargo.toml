@@ -1,0 +1,19 @@
+[package]
+name = "stylet-wasm"
+description = "WebAssembly bindings for the stylet playground"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+stylet-compile.workspace = true
+stylet-fmt.workspace = true
+stylet-highlight.workspace = true
