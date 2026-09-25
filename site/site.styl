@@ -114,8 +114,62 @@ figure {
 
 figcaption {
   color: var(--muted)
+  display: flex
   font: 12px var(--mono)
+  gap: .5rem
+  justify-content: space-between
   margin-bottom: .4rem
+
+  .hint {
+    color: var(--muted)
+    opacity: .8
+  }
+
+  a.hint:hover {
+    color: var(--accent)
+    opacity: 1
+  }
+}
+
+// The editable example: a transparent textarea over its highlighted copy,
+// stacked in one grid cell so the box grows with the code.
+.editor {
+  @extend $panel
+  border-radius: 10px
+  display: grid
+
+  pre,
+  textarea {
+    background: transparent
+    border: 0
+    border-radius: 0
+    font: 13.5px/1.55 var(--mono)
+    grid-area: 1 / 1
+    margin: 0
+    overflow: hidden
+    padding: 1rem 1.25rem
+    tab-size: 2
+    white-space: pre
+  }
+
+  textarea {
+    caret-color: var(--text)
+    color: transparent
+    outline: none
+    resize: none
+  }
+
+  &:focus-within {
+    border-color: var(--accent)
+  }
+}
+
+#example-diagnostics {
+  color: var(--error)
+  font: 12px/1.5 var(--mono)
+  list-style: none
+  margin: .5rem 0 0
+  padding: 0
 }
 
 pre {
