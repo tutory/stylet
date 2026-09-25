@@ -110,8 +110,9 @@ fn inline() {
     expect_test::expect_file!["migrate_inline.out"].assert_eq(&run(&options));
 }
 
-/// Stylus keeps directories of earlier imports searchable; the migration
-/// rewrites such imports to root-relative paths.
+/// A `.css` import never pops Stylus' lookup stack, so the importing file's
+/// directory stays searchable for later imports; the migration rewrites such
+/// imports to root-relative paths.
 #[test]
 fn leaked_import_directories() {
     let mut fs = MemoryFs::default();
@@ -119,7 +120,11 @@ fn leaked_import_directories() {
         "/p/env/t/index.styl",
         "@layer core\n  @import '/client/apps'\n@import './apps'\n",
     );
-    fs.insert("/p/client/apps/index.styl", "@import 'base'\n");
+    fs.insert(
+        "/p/client/apps/index.styl",
+        "@import 'base'\n@import 'vendor.css'\n",
+    );
+    fs.insert("/p/client/apps/vendor.css", "");
     fs.insert("/p/client/apps/base/base.styl", ".base\n  a: b\n");
     fs.insert("/p/client/apps/editor/x.styl", ".x\n  a: b\n");
     fs.insert("/p/env/t/apps/index.styl", "@import './editor/x'\n");
@@ -136,7 +141,7 @@ fn leaked_import_directories() {
     );
     assert_eq!(
         migration.files[Path::new("/p/client/apps/index.styl")],
-        "@import '/client/apps/base/base'\n"
+        "@import '/client/apps/base/base'\n@import 'vendor.css'\n"
     );
 }
 

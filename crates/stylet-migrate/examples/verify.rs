@@ -243,8 +243,141 @@ fn round_numbers(s: &str) -> String {
     out
 }
 
+/// Evaluates `calc()` of numbers with a common unit (or unitless factors).
+fn eval_calc(s: &str) -> String {
+    let mut out = s.to_string();
+    for _ in 0..16 {
+        let Some(start) = out.rfind("calc(") else {
+            break;
+        };
+        let mut depth = 0;
+        let mut end = None;
+        for (i, ch) in out[start + 4..].char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(start + 4 + i);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(end) = end else { break };
+        match calc_expr(&out[start + 5..end]) {
+            Some((n, unit)) => {
+                let mut text = format!("{:.3}", n);
+                text.truncate(text.trim_end_matches('0').trim_end_matches('.').len());
+                if text == "-0" {
+                    text = "0".into();
+                }
+                out.replace_range(start..=end, &format!("{text}{unit}"));
+            }
+            None => break,
+        }
+    }
+    out
+}
+
+fn calc_expr(s: &str) -> Option<(f64, String)> {
+    let tokens: Vec<String> = s
+        .replace('(', " ( ")
+        .replace(')', " ) ")
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    let mut pos = 0;
+    let v = calc_sum(&tokens, &mut pos)?;
+    (pos == tokens.len()).then_some(v)
+}
+
+fn calc_sum(t: &[String], pos: &mut usize) -> Option<(f64, String)> {
+    let mut acc = calc_product(t, pos)?;
+    while *pos < t.len() && (t[*pos] == "+" || t[*pos] == "-") {
+        let op = t[*pos].clone();
+        *pos += 1;
+        let rhs = calc_product(t, pos)?;
+        if acc.1 != rhs.1 && !(acc.0 == 0.0 || rhs.0 == 0.0) {
+            return None;
+        }
+        let unit = if acc.1.is_empty() {
+            rhs.1.clone()
+        } else {
+            acc.1.clone()
+        };
+        acc = (
+            if op == "+" {
+                acc.0 + rhs.0
+            } else {
+                acc.0 - rhs.0
+            },
+            unit,
+        );
+    }
+    Some(acc)
+}
+
+fn calc_product(t: &[String], pos: &mut usize) -> Option<(f64, String)> {
+    let mut acc = calc_atom(t, pos)?;
+    while *pos < t.len() && (t[*pos] == "*" || t[*pos] == "/") {
+        let op = t[*pos].clone();
+        *pos += 1;
+        let rhs = calc_atom(t, pos)?;
+        acc = match (op.as_str(), acc.1.is_empty(), rhs.1.is_empty()) {
+            ("*", _, true) => (acc.0 * rhs.0, acc.1),
+            ("*", true, false) => (acc.0 * rhs.0, rhs.1),
+            ("/", _, true) if rhs.0 != 0.0 => (acc.0 / rhs.0, acc.1),
+            _ => return None,
+        };
+    }
+    Some(acc)
+}
+
+fn calc_atom(t: &[String], pos: &mut usize) -> Option<(f64, String)> {
+    let tok = t.get(*pos)?.clone();
+    *pos += 1;
+    if tok == "(" {
+        let v = calc_sum(t, pos)?;
+        if t.get(*pos)? != ")" {
+            return None;
+        }
+        *pos += 1;
+        return Some(v);
+    }
+    let split = tok
+        .find(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-' || c == '+'))
+        .unwrap_or(tok.len());
+    let n: f64 = tok[..split].parse().ok()?;
+    Some((n, tok[split..].to_string()))
+}
+
+/// `rgb(r,g,b)` → `#rrggbb`; `#rgba`/`#rrggbbaa` → `rgba(r,g,b,a)`.
+fn norm_colors(s: &str) -> String {
+    let mut out = s.to_string();
+    while let Some(start) = out.find("rgb(") {
+        let Some(len) = out[start..].find(')') else {
+            break;
+        };
+        let args: Vec<u8> = out[start + 4..start + len]
+            .split([',', ' '])
+            .filter(|a| !a.is_empty())
+            .filter_map(|a| a.parse().ok())
+            .collect();
+        if args.len() != 3 {
+            break;
+        }
+        out.replace_range(
+            start..=start + len,
+            &format!("#{:02x}{:02x}{:02x}", args[0], args[1], args[2]),
+        );
+    }
+    out
+}
+
 fn norm_value(s: &str) -> String {
-    let mut s = round_numbers(&norm_space(s));
+    let mut s = round_numbers(&eval_calc(&norm_colors(&norm_space(s))));
     s = s
         .replace(", ", ",")
         .replace(" ,", ",")

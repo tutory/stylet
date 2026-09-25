@@ -114,6 +114,8 @@ enum Extender {
 
 struct PlaceholderDef {
     name: String,
+    /// Position in emission order (see `Emitter::clock`).
+    at: u64,
     /// Where it is defined; the same definition may be emitted more than once.
     origin: (FileId, TextRange),
     /// Output range of the whole rule, including the separator before it.
@@ -127,6 +129,8 @@ struct ExtendUse {
     extender: Extender,
     file: FileId,
     range: TextRange,
+    /// Position in emission order (see `Emitter::clock`).
+    at: u64,
 }
 
 pub struct Emitter<'a, F> {
@@ -142,7 +146,12 @@ pub struct Emitter<'a, F> {
     imported: HashSet<(FileId, Vec<Scope>)>,
     /// Output offset where the current item (including its separator) starts.
     item_start: usize,
+    /// Counts emitted items; unlike output offsets it never goes back when
+    /// empty rules are dropped.
+    clock: u64,
     placeholders: Vec<PlaceholderDef>,
+    /// Names of all defined placeholders, including empty ones.
+    placeholder_names: HashSet<String>,
     extends: Vec<ExtendUse>,
     pub out: String,
     pub mappings: Vec<Mapping>,
@@ -164,7 +173,9 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             scope: Vec::new(),
             imported: HashSet::new(),
             item_start: 0,
+            clock: 0,
             placeholders: Vec::new(),
+            placeholder_names: HashSet::new(),
             extends: Vec::new(),
             out: String::new(),
             mappings: Vec::new(),
@@ -271,6 +282,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             }
             let before_item = self.out.len();
             self.item_start = start;
+            self.clock += 1;
             match item {
                 Ok(item) => self.item(item, ctx, depth),
                 Err(comment) => {
@@ -374,13 +386,6 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             return;
         };
         let name = name.text().to_string();
-        if placeholder
-            .syntax()
-            .parent()
-            .is_none_or(|p| p.kind() != ROOT)
-        {
-            return; // nested in a block: already a syntax error
-        }
         // Only cascade layers may enclose a placeholder: inside style rules or
         // conditional rules, extenders' selectors would change meaning.
         let only_layers = self
@@ -401,7 +406,9 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         {
             return self.error(range, format!("placeholder `{name}` is already defined"));
         }
+        self.placeholder_names.insert(name.clone());
         let item_start = self.item_start;
+        let at = self.clock;
         let kind = ScopeKind::Placeholder(name.clone());
         let head = self.block(kind, name.clone(), range.start(), depth, true, |this| {
             this.items(block.syntax(), Ctx::Style, depth + 1)
@@ -409,6 +416,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         if let Some(head) = head {
             self.placeholders.push(PlaceholderDef {
                 name,
+                at,
                 origin,
                 item: item_start..self.out.len(),
                 head,
@@ -451,12 +459,14 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             (None, None) => return self.error(range, "`@extend` must be inside a rule"),
         };
         let file = self.file();
+        let at = self.clock;
         for target in extend.targets() {
             self.extends.push(ExtendUse {
                 target: target.text().to_string(),
                 extender: extender.clone(),
                 file,
                 range,
+                at,
             });
         }
     }
@@ -464,7 +474,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
     /// Fills in each placeholder's selector list, or removes unused placeholders.
     fn resolve_placeholders(&mut self) {
         for use_ in &self.extends {
-            if !self.placeholders.iter().any(|p| p.name == use_.target) {
+            if !self.placeholder_names.contains(&use_.target) {
                 self.diagnostics.push(Diagnostic::error(
                     format!("unknown placeholder `{}`", use_.target),
                     Some(use_.file),
@@ -477,7 +487,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             .placeholders
             .iter()
             .map(|def| {
-                let selectors = self.selectors_of(&def.name, &mut Vec::new());
+                let selectors = self.selectors_of(&def.name, Some(def.at), &mut Vec::new());
                 if selectors.is_empty() {
                     (def.item.clone(), String::new())
                 } else {
@@ -497,15 +507,41 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
     }
 
     /// Selectors extending placeholder `name`, directly or through other placeholders.
-    fn selectors_of(&self, name: &str, visiting: &mut Vec<String>) -> Vec<String> {
+    ///
+    /// With `copy_at` (the output offset of one emitted copy), like Stylus an
+    /// `@extend` only reaches copies emitted before it — or the first copy if
+    /// none precedes it.
+    fn selectors_of(
+        &self,
+        name: &str,
+        copy_at: Option<u64>,
+        visiting: &mut Vec<String>,
+    ) -> Vec<String> {
         visiting.push(name.to_string());
         let mut out: Vec<String> = Vec::new();
-        for use_ in self.extends.iter().filter(|u| u.target == name) {
+        let copies: Vec<u64> = self
+            .placeholders
+            .iter()
+            .filter(|p| p.name == name)
+            .map(|p| p.at)
+            .collect();
+        let reaches = |use_: &ExtendUse| match copy_at {
+            None => true,
+            Some(at) => {
+                at < use_.at
+                    || (copies.iter().all(|&c| c >= use_.at) && copies.iter().min() == Some(&at))
+            }
+        };
+        for use_ in self
+            .extends
+            .iter()
+            .filter(|u| u.target == name && reaches(u))
+        {
             let found = match &use_.extender {
                 Extender::Selector(selector) => vec![selector.clone()],
                 Extender::Placeholder { name: p, nested } if !visiting.contains(p) => {
                     let separator = if self.options.minify { "," } else { ", " };
-                    self.selectors_of(p, visiting)
+                    self.selectors_of(p, None, visiting)
                         .into_iter()
                         .map(|base| {
                             nested.iter().fold(base, |parent, child| {

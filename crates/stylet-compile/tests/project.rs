@@ -20,7 +20,7 @@ fn project() {
         ..Options::default()
     };
     let mut text = String::new();
-    for entry in ["env/a/index.styl", "env/a/errors.styl"] {
+    for entry in ["env/a/index.styl", "env/a/errors.styl", "env/a/twice.styl"] {
         text += &format!("=== {entry}\n");
         compile(&mut loader, &root, &root.join(entry), &options, &mut text);
     }

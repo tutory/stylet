@@ -14,5 +14,3 @@
 }
 --- minified
 .early,.button,.link,:is(.button,.link) .icon,:is(.button,.link).small,.card,.toolbar .item{padding:4px;&:hover{color:blue;}}.button,.link,:is(.button,.link) .icon{color:white;}.button,.link{color:red;}
---- diagnostics
-Error 374..388 "@extend $group": unknown placeholder `$group`

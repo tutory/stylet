@@ -284,9 +284,6 @@ impl Parser<'_> {
 
     fn placeholder(&mut self, stmt: Statement, depth: usize) {
         let start = self.pos;
-        if depth > 0 {
-            self.error_at(start, "placeholders must be defined at the top level");
-        }
         if self.next_significant(start + 1) < stmt.end {
             self.error_range(
                 start,

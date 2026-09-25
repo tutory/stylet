@@ -121,9 +121,10 @@ pub struct Interp<'a, F> {
     pub mirrors: BTreeSet<String>,
     /// (file, line, message) of warnings already reported.
     reported: HashSet<(PathBuf, u32, String)>,
-    /// Directories of files imported so far in this entry (Stylus keeps them
-    /// searchable for later imports).
-    visited_dirs: Vec<PathBuf>,
+    /// Stylus' lookup path stack: each import pushes its directory and pops
+    /// the last entry afterwards, except `.css` imports, which never pop — so
+    /// directories leak into later lookups exactly like in Stylus.
+    lookup_paths: Vec<PathBuf>,
     /// The file whose output is being built (mixin bodies run in the caller's output).
     output_file: PathBuf,
 }
@@ -164,7 +165,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             unknown_functions: Vec::new(),
             mirrors: BTreeSet::new(),
             reported: HashSet::new(),
-            visited_dirs: Vec::new(),
+            lookup_paths: Vec::new(),
             output_file: PathBuf::new(),
         }
     }
@@ -176,7 +177,13 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             .retain(|name, _| self.options.defines.iter().any(|(n, _)| n == name));
         self.defs.clear();
         self.required.clear();
-        self.visited_dirs.clear();
+        self.lookup_paths = self
+            .options
+            .preload
+            .iter()
+            .filter_map(|p| p.parent().map(Path::to_path_buf))
+            .collect();
+        self.lookup_paths.push(self.root.clone());
         self.preloading = true;
         for preload in &self.options.preload {
             self.file(preload);
@@ -227,10 +234,8 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             return self.warn(0, "import", "import cycle");
         }
         self.file_stack.push(path.to_path_buf());
-        if let Some(dir) = path.parent() {
-            self.visited_dirs.retain(|d| d != dir);
-            self.visited_dirs.push(dir.to_path_buf());
-        }
+        self.lookup_paths
+            .push(path.parent().map(Path::to_path_buf).unwrap_or_default());
         let saved_hoisted = std::mem::take(&mut self.hoisted);
         let saved_output = std::mem::replace(&mut self.output_file, path.to_path_buf());
         let mut out = Vec::new();
@@ -240,6 +245,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             in_mixin: false,
         };
         self.stmts(&source.stmts, &mut out, ctx);
+        self.lookup_paths.pop();
         self.hoisted = saved_hoisted;
         self.output_file = saved_output;
         self.file_stack.pop();
@@ -384,13 +390,14 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             StmtKind::Rule { selectors, body } => {
                 let selectors: Vec<String> = selectors
                     .iter()
+                    .map(|s| self.interpolate(s, line))
                     .flat_map(|s| {
-                        s.split(',')
-                            .map(str::trim)
-                            .filter(|s| !s.is_empty())
+                        expr::split_top_level(&s)
+                            .into_iter()
+                            .map(|part| part.trim().to_string())
+                            .filter(|part| !part.is_empty())
                             .collect::<Vec<_>>()
                     })
-                    .map(|s| self.interpolate(s, line))
                     .collect();
                 // `/selector`: a root selector, outside of any nesting.
                 let (root, selectors): (Vec<String>, Vec<String>) = if ctx.in_rule {
@@ -573,6 +580,9 @@ impl<'a, F: FileSystem> Interp<'a, F> {
         }
         if path.ends_with(".css") {
             let found = self.lookup_file(&path);
+            if let Some(dir) = found.as_ref().and_then(|f| f.parent()) {
+                self.lookup_paths.push(dir.to_path_buf());
+            }
             let path = match found {
                 Some(found) if self.stylet_resolve(&path).as_ref() != Some(&found) => {
                     self.root_relative(&found, false)
@@ -618,21 +628,9 @@ impl<'a, F: FileSystem> Interp<'a, F> {
         out
     }
 
-    /// Directories Stylus searches, most specific first.
+    /// Directories Stylus searches, most recently pushed first.
     fn lookup_dirs(&self) -> Vec<PathBuf> {
-        let mut dirs: Vec<PathBuf> = self
-            .file_stack
-            .iter()
-            .rev()
-            .filter_map(|p| p.parent().map(Path::to_path_buf))
-            .collect();
-        dirs.push(self.root.clone());
-        for dir in self.visited_dirs.iter().rev() {
-            if !dirs.contains(dir) {
-                dirs.push(dir.clone());
-            }
-        }
-        dirs
+        self.lookup_paths.iter().rev().cloned().collect()
     }
 
     /// A file (asset or CSS) found through the Stylus lookup directories.
@@ -688,7 +686,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             PathBuf::from(format!("{}.styl", base.display())),
             base.join("index.styl"),
         ];
-        if spec.ends_with(".styl") {
+        if spec.ends_with(".styl") || spec.ends_with(".css") {
             candidates.insert(0, base);
         }
         candidates

@@ -40,5 +40,4 @@ ROOT@0..48
       R_BRACE@46..47 "}"
   NEWLINE@47..48 "\n"
   EOF@48..48 ""
-error 7..14: placeholders must be defined at the top level
 error 38..43: a placeholder selector can't be combined with other selectors

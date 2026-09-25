@@ -1,0 +1,9 @@
+@import '/client/twice' layer(a)
+@layer a {
+  .x {
+    .y { @extend $twice }
+  }
+}
+.between { @extend $twice }
+@import '/client/twice' layer(b)
+.after { @extend $twice }
