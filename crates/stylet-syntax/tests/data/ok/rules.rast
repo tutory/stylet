@@ -1,0 +1,116 @@
+ROOT@0..238
+  LINE_COMMENT@0..15 "// line comment"
+  NEWLINE@15..16 "\n"
+  BLOCK_COMMENT@16..35 "/* block comment */"
+  NEWLINE@35..36 "\n"
+  RULE@36..197
+    SELECTOR@36..74
+      DOT@36..37 "."
+      IDENT@37..43 "button"
+      COMMA@43..44 ","
+      WHITESPACE@44..45 " "
+      DOT@45..46 "."
+      IDENT@46..50 "link"
+      COLON@50..51 ":"
+      IDENT@51..56 "hover"
+      WHITESPACE@56..57 " "
+      GT@57..58 ">"
+      WHITESPACE@58..59 " "
+      IDENT@59..60 "a"
+      L_BRACK@60..61 "["
+      IDENT@61..65 "href"
+      DELIM@65..66 "^"
+      EQ@66..67 "="
+      STRING@67..73 "\"http\""
+      R_BRACK@73..74 "]"
+    WHITESPACE@74..75 " "
+    BLOCK@75..197
+      L_BRACE@75..76 "{"
+      NEWLINE@76..77 "\n"
+      WHITESPACE@77..79 "  "
+      DECLARATION@79..89
+        PROPERTY@79..84
+          IDENT@79..84 "color"
+        COLON@84..85 ":"
+        WHITESPACE@85..86 " "
+        VALUE@86..89
+          IDENT@86..89 "red"
+      NEWLINE@89..90 "\n"
+      WHITESPACE@90..92 "  "
+      DECLARATION@92..128
+        PROPERTY@92..102
+          IDENT@92..102 "background"
+        COLON@102..103 ":"
+        WHITESPACE@103..104 " "
+        VALUE@104..128
+          URL@104..118 "url(img/a.png)"
+          WHITESPACE@118..119 " "
+          IDENT@119..128 "no-repeat"
+      WHITESPACE@128..129 " "
+      LINE_COMMENT@129..140 "// trailing"
+      NEWLINE@140..141 "\n"
+      WHITESPACE@141..143 "  "
+      DECLARATION@143..151
+        PROPERTY@143..150
+          IDENT@143..150 "--empty"
+        COLON@150..151 ":"
+      NEWLINE@151..152 "\n"
+      NEWLINE@152..153 "\n"
+      WHITESPACE@153..155 "  "
+      RULE@155..195
+        SELECTOR@155..162
+          AMP@155..156 "&"
+          COLON@156..157 ":"
+          IDENT@157..162 "hover"
+        WHITESPACE@162..163 " "
+        BLOCK@163..195
+          L_BRACE@163..164 "{"
+          NEWLINE@164..165 "\n"
+          WHITESPACE@165..169 "    "
+          DECLARATION@169..191
+            PROPERTY@169..174
+              IDENT@169..174 "color"
+            COLON@174..175 ":"
+            WHITESPACE@175..176 " "
+            VALUE@176..191
+              IDENT@176..180 "blue"
+              WHITESPACE@180..181 " "
+              BANG@181..182 "!"
+              IDENT@182..191 "important"
+          NEWLINE@191..192 "\n"
+          WHITESPACE@192..194 "  "
+          R_BRACE@194..195 "}"
+      NEWLINE@195..196 "\n"
+      R_BRACE@196..197 "}"
+  NEWLINE@197..198 "\n"
+  NEWLINE@198..199 "\n"
+  RULE@199..227
+    SELECTOR@199..208
+      DOT@199..200 "."
+      IDENT@200..208 "one-line"
+    WHITESPACE@208..209 " "
+    BLOCK@209..227
+      L_BRACE@209..210 "{"
+      WHITESPACE@210..211 " "
+      DECLARATION@211..225
+        PROPERTY@211..217
+          IDENT@211..217 "margin"
+        COLON@217..218 ":"
+        WHITESPACE@218..219 " "
+        VALUE@219..225
+          NUMBER@219..220 "0"
+          WHITESPACE@220..221 " "
+          IDENT@221..225 "auto"
+      WHITESPACE@225..226 " "
+      R_BRACE@226..227 "}"
+  NEWLINE@227..228 "\n"
+  RULE@228..237
+    SELECTOR@228..234
+      DOT@228..229 "."
+      IDENT@229..234 "empty"
+    WHITESPACE@234..235 " "
+    BLOCK@235..237
+      L_BRACE@235..236 "{"
+      R_BRACE@236..237 "}"
+  NEWLINE@237..238 "\n"
+  EOF@238..238 ""

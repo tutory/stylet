@@ -1,0 +1,44 @@
+ROOT@0..48
+  RULE@0..37
+    SELECTOR@0..2
+      DOT@0..1 "."
+      IDENT@1..2 "a"
+    WHITESPACE@2..3 " "
+    BLOCK@3..37
+      L_BRACE@3..4 "{"
+      NEWLINE@4..5 "\n"
+      WHITESPACE@5..7 "  "
+      PLACEHOLDER@7..35
+        PLACEHOLDER_NAME@7..14 "$nested"
+        WHITESPACE@14..15 " "
+        BLOCK@15..35
+          L_BRACE@15..16 "{"
+          NEWLINE@16..17 "\n"
+          WHITESPACE@17..21 "    "
+          DECLARATION@21..31
+            PROPERTY@21..26
+              IDENT@21..26 "color"
+            COLON@26..27 ":"
+            WHITESPACE@27..28 " "
+            VALUE@28..31
+              IDENT@28..31 "red"
+          NEWLINE@31..32 "\n"
+          WHITESPACE@32..34 "  "
+          R_BRACE@34..35 "}"
+      NEWLINE@35..36 "\n"
+      R_BRACE@36..37 "}"
+  NEWLINE@37..38 "\n"
+  PLACEHOLDER@38..47
+    PLACEHOLDER_NAME@38..40 "$a"
+    WHITESPACE@40..41 " "
+    DOT@41..42 "."
+    IDENT@42..43 "b"
+    WHITESPACE@43..44 " "
+    BLOCK@44..47
+      L_BRACE@44..45 "{"
+      NEWLINE@45..46 "\n"
+      R_BRACE@46..47 "}"
+  NEWLINE@47..48 "\n"
+  EOF@48..48 ""
+error 7..14: placeholders must be defined at the top level
+error 38..43: a placeholder selector can't be combined with other selectors

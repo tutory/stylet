@@ -1,0 +1,36 @@
+ROOT@0..46
+  RULE@0..45
+    SELECTOR@0..2
+      DOT@0..1 "."
+      IDENT@1..2 "a"
+    WHITESPACE@2..3 " "
+    BLOCK@3..45
+      L_BRACE@3..4 "{"
+      NEWLINE@4..5 "\n"
+      WHITESPACE@5..7 "  "
+      EXTEND@7..17
+        AT_KEYWORD@7..14 "@extend"
+        WHITESPACE@14..15 " "
+        PRELUDE@15..17
+          DOT@15..16 "."
+          IDENT@16..17 "b"
+      NEWLINE@17..18 "\n"
+      WHITESPACE@18..20 "  "
+      EXTEND@20..33
+        AT_KEYWORD@20..27 "@extend"
+        WHITESPACE@27..28 " "
+        PRELUDE@28..33
+          PLACEHOLDER_NAME@28..30 "$a"
+          WHITESPACE@30..31 " "
+          PLACEHOLDER_NAME@31..33 "$b"
+      NEWLINE@33..34 "\n"
+      WHITESPACE@34..36 "  "
+      EXTEND@36..43
+        AT_KEYWORD@36..43 "@extend"
+      NEWLINE@43..44 "\n"
+      R_BRACE@44..45 "}"
+  NEWLINE@45..46 "\n"
+  EOF@46..46 ""
+error 15..16: only placeholders (`$name`) can be extended
+error 31..33: expected `,` between placeholders
+error 36..43: expected a placeholder after `@extend`

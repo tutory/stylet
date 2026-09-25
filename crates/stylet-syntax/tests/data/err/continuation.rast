@@ -1,0 +1,27 @@
+ROOT@0..41
+  RULE@0..40
+    SELECTOR@0..2
+      DOT@0..1 "."
+      IDENT@1..2 "a"
+    WHITESPACE@2..3 " "
+    BLOCK@3..40
+      L_BRACE@3..4 "{"
+      NEWLINE@4..5 "\n"
+      WHITESPACE@5..7 "  "
+      DECLARATION@7..31
+        PROPERTY@7..26
+          IDENT@7..26 "grid-template-areas"
+        COLON@26..27 ":"
+        WHITESPACE@27..28 " "
+        VALUE@28..31
+          STRING@28..31 "\"a\""
+      NEWLINE@31..32 "\n"
+      NEWLINE@32..33 "\n"
+      WHITESPACE@33..35 "  "
+      ERROR@35..38
+        STRING@35..38 "\"b\""
+      NEWLINE@38..39 "\n"
+      R_BRACE@39..40 "}"
+  NEWLINE@40..41 "\n"
+  EOF@41..41 ""
+error 35..38: expected a declaration (`property: value`), a rule (`selector { … }`) or an at-rule

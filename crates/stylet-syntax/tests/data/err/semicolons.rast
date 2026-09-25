@@ -1,0 +1,41 @@
+ROOT@0..45
+  RULE@0..44
+    SELECTOR@0..2
+      DOT@0..1 "."
+      IDENT@1..2 "a"
+    WHITESPACE@2..3 " "
+    BLOCK@3..44
+      L_BRACE@3..4 "{"
+      NEWLINE@4..5 "\n"
+      WHITESPACE@5..7 "  "
+      DECLARATION@7..18
+        PROPERTY@7..12
+          IDENT@7..12 "color"
+        COLON@12..13 ":"
+        WHITESPACE@13..14 " "
+        VALUE@14..18
+          IDENT@14..17 "red"
+          ERROR@17..18
+            SEMICOLON@17..18 ";"
+      NEWLINE@18..19 "\n"
+      WHITESPACE@19..21 "  "
+      DECLARATION@21..42
+        PROPERTY@21..27
+          IDENT@21..27 "margin"
+        COLON@27..28 ":"
+        WHITESPACE@28..29 " "
+        VALUE@29..42
+          NUMBER@29..30 "0"
+          ERROR@30..31
+            SEMICOLON@30..31 ";"
+          WHITESPACE@31..32 " "
+          IDENT@32..39 "padding"
+          COLON@39..40 ":"
+          WHITESPACE@40..41 " "
+          NUMBER@41..42 "0"
+      NEWLINE@42..43 "\n"
+      R_BRACE@43..44 "}"
+  NEWLINE@44..45 "\n"
+  EOF@45..45 ""
+error 17..18: stylet doesn't use semicolons; end the line instead
+error 30..31: stylet doesn't use semicolons; end the line instead

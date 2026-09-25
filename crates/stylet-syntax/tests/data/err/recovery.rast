@@ -1,0 +1,91 @@
+ROOT@0..102
+  ERROR@0..1
+    R_BRACE@0..1 "}"
+  NEWLINE@1..2 "\n"
+  RULE@2..102
+    SELECTOR@2..4
+      DOT@2..3 "."
+      IDENT@3..4 "a"
+    WHITESPACE@4..5 " "
+    BLOCK@5..102
+      L_BRACE@5..6 "{"
+      NEWLINE@6..7 "\n"
+      WHITESPACE@7..9 "  "
+      ERROR@9..14
+        IDENT@9..14 "color"
+      NEWLINE@14..15 "\n"
+      WHITESPACE@15..17 "  "
+      ERROR@17..22
+        COLON@17..18 ":"
+        WHITESPACE@18..19 " "
+        IDENT@19..22 "red"
+      NEWLINE@22..23 "\n"
+      WHITESPACE@23..25 "  "
+      DECLARATION@25..32
+        PROPERTY@25..31
+          IDENT@25..31 "margin"
+        COLON@31..32 ":"
+      NEWLINE@32..33 "\n"
+      WHITESPACE@33..35 "  "
+      IMPORT@35..46
+        AT_KEYWORD@35..42 "@import"
+        WHITESPACE@42..43 " "
+        PRELUDE@43..46
+          IDENT@43..46 "foo"
+      NEWLINE@46..47 "\n"
+      WHITESPACE@47..49 "  "
+      IMPORT@49..60
+        AT_KEYWORD@49..56 "@import"
+        WHITESPACE@56..57 " "
+        PRELUDE@57..60
+          STRING@57..60 "'x'"
+      ERROR@60..66
+        WHITESPACE@60..61 " "
+        BLOCK@61..66
+          L_BRACE@61..62 "{"
+          NEWLINE@62..63 "\n"
+          WHITESPACE@63..65 "  "
+          R_BRACE@65..66 "}"
+      NEWLINE@66..67 "\n"
+      WHITESPACE@67..69 "  "
+      RULE@69..83
+        BLOCK@69..83
+          L_BRACE@69..70 "{"
+          WHITESPACE@70..71 " "
+          DECLARATION@71..81
+            PROPERTY@71..76
+              IDENT@71..76 "color"
+            COLON@76..77 ":"
+            WHITESPACE@77..78 " "
+            VALUE@78..81
+              IDENT@78..81 "red"
+          WHITESPACE@81..82 " "
+          R_BRACE@82..83 "}"
+      NEWLINE@83..84 "\n"
+      RULE@84..102
+        SELECTOR@84..86
+          DOT@84..85 "."
+          IDENT@85..86 "b"
+        WHITESPACE@86..87 " "
+        BLOCK@87..102
+          L_BRACE@87..88 "{"
+          NEWLINE@88..89 "\n"
+          WHITESPACE@89..91 "  "
+          DECLARATION@91..101
+            PROPERTY@91..96
+              IDENT@91..96 "color"
+            COLON@96..97 ":"
+            WHITESPACE@97..98 " "
+            VALUE@98..101
+              IDENT@98..101 "red"
+          NEWLINE@101..102 "\n"
+  EOF@102..102 ""
+error 0..1: unmatched `}`
+error 9..14: expected a declaration (`property: value`), a rule (`selector { … }`) or an at-rule
+error 17..22: expected a declaration (`property: value`), a rule (`selector { … }`) or an at-rule
+error 31..32: expected a value after `:`
+error 43..46: expected a quoted path
+error 61..62: `@import` can't have a block
+error 69..70: expected a selector before `{`
+error 102..102: expected `}`
+error 102..102: expected `}`

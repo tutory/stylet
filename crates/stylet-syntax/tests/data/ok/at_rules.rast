@@ -1,0 +1,207 @@
+ROOT@0..420
+  IMPORT@0..20
+    AT_KEYWORD@0..7 "@import"
+    WHITESPACE@7..8 " "
+    PRELUDE@8..20
+      STRING@8..20 "'base/reset'"
+  NEWLINE@20..21 "\n"
+  IMPORT@21..57
+    AT_KEYWORD@21..28 "@import"
+    WHITESPACE@28..29 " "
+    PRELUDE@29..57
+      STRING@29..44 "\"/client/fonts\""
+      WHITESPACE@44..45 " "
+      IDENT@45..50 "layer"
+      L_PAREN@50..51 "("
+      IDENT@51..56 "fonts"
+      R_PAREN@56..57 ")"
+  NEWLINE@57..58 "\n"
+  IMPORT@58..87
+    AT_KEYWORD@58..65 "@import"
+    WHITESPACE@65..66 " "
+    PRELUDE@66..87
+      URL@66..81 "url(legacy.css)"
+      WHITESPACE@81..82 " "
+      IDENT@82..87 "layer"
+  NEWLINE@87..88 "\n"
+  AT_RULE@88..106
+    AT_KEYWORD@88..94 "@layer"
+    WHITESPACE@94..95 " "
+    PRELUDE@95..106
+      IDENT@95..100 "reset"
+      COMMA@100..101 ","
+      WHITESPACE@101..102 " "
+      IDENT@102..106 "core"
+  NEWLINE@106..107 "\n"
+  AT_RULE@107..145
+    AT_KEYWORD@107..120 "@custom-media"
+    WHITESPACE@120..121 " "
+    PRELUDE@121..145
+      IDENT@121..128 "--phone"
+      WHITESPACE@128..129 " "
+      L_PAREN@129..130 "("
+      IDENT@130..135 "width"
+      WHITESPACE@135..136 " "
+      DELIM@136..137 "<"
+      EQ@137..138 "="
+      WHITESPACE@138..139 " "
+      NUMBER@139..144 "600px"
+      R_PAREN@144..145 ")"
+  NEWLINE@145..146 "\n"
+  NEWLINE@146..147 "\n"
+  PLACEHOLDER@147..170
+    PLACEHOLDER_NAME@147..151 "$btn"
+    WHITESPACE@151..152 " "
+    BLOCK@152..170
+      L_BRACE@152..153 "{"
+      NEWLINE@153..154 "\n"
+      WHITESPACE@154..156 "  "
+      DECLARATION@156..168
+        PROPERTY@156..163
+          IDENT@156..163 "padding"
+        COLON@163..164 ":"
+        WHITESPACE@164..165 " "
+        VALUE@165..168
+          NUMBER@165..168 "4px"
+      NEWLINE@168..169 "\n"
+      R_BRACE@169..170 "}"
+  NEWLINE@170..171 "\n"
+  NEWLINE@171..172 "\n"
+  RULE@172..280
+    SELECTOR@172..179
+      DOT@172..173 "."
+      IDENT@173..179 "button"
+    WHITESPACE@179..180 " "
+    BLOCK@180..280
+      L_BRACE@180..181 "{"
+      NEWLINE@181..182 "\n"
+      WHITESPACE@182..184 "  "
+      EXTEND@184..196
+        AT_KEYWORD@184..191 "@extend"
+        WHITESPACE@191..192 " "
+        PRELUDE@192..196
+          PLACEHOLDER_NAME@192..196 "$btn"
+      NEWLINE@196..197 "\n"
+      WHITESPACE@197..199 "  "
+      EXTEND@199..220
+        AT_KEYWORD@199..207 "@extends"
+        WHITESPACE@207..208 " "
+        PRELUDE@208..220
+          PLACEHOLDER_NAME@208..212 "$btn"
+          COMMA@212..213 ","
+          WHITESPACE@213..214 " "
+          PLACEHOLDER_NAME@214..220 "$other"
+      NEWLINE@220..221 "\n"
+      NEWLINE@221..222 "\n"
+      WHITESPACE@222..224 "  "
+      AT_RULE@224..278
+        AT_KEYWORD@224..230 "@media"
+        WHITESPACE@230..231 " "
+        PRELUDE@231..255
+          IDENT@231..237 "screen"
+          WHITESPACE@237..238 " "
+          IDENT@238..241 "and"
+          NEWLINE@241..242 "\n"
+          WHITESPACE@242..246 "    "
+          L_PAREN@246..247 "("
+          IDENT@247..254 "--phone"
+          R_PAREN@254..255 ")"
+        WHITESPACE@255..256 " "
+        BLOCK@256..278
+          L_BRACE@256..257 "{"
+          NEWLINE@257..258 "\n"
+          WHITESPACE@258..262 "    "
+          DECLARATION@262..274
+            PROPERTY@262..269
+              IDENT@262..269 "padding"
+            COLON@269..270 ":"
+            WHITESPACE@270..271 " "
+            VALUE@271..274
+              NUMBER@271..274 "8px"
+          NEWLINE@274..275 "\n"
+          WHITESPACE@275..277 "  "
+          R_BRACE@277..278 "}"
+      NEWLINE@278..279 "\n"
+      R_BRACE@279..280 "}"
+  NEWLINE@280..281 "\n"
+  NEWLINE@281..282 "\n"
+  AT_RULE@282..349
+    AT_KEYWORD@282..292 "@font-face"
+    WHITESPACE@292..293 " "
+    BLOCK@293..349
+      L_BRACE@293..294 "{"
+      NEWLINE@294..295 "\n"
+      WHITESPACE@295..297 "  "
+      DECLARATION@297..311
+        PROPERTY@297..308
+          IDENT@297..308 "font-family"
+        COLON@308..309 ":"
+        WHITESPACE@309..310 " "
+        VALUE@310..311
+          IDENT@310..311 "X"
+      NEWLINE@311..312 "\n"
+      WHITESPACE@312..314 "  "
+      DECLARATION@314..347
+        PROPERTY@314..317
+          IDENT@314..317 "src"
+        COLON@317..318 ":"
+        WHITESPACE@318..319 " "
+        VALUE@319..347
+          URL@319..331 "url(x.woff2)"
+          WHITESPACE@331..332 " "
+          IDENT@332..338 "format"
+          L_PAREN@338..339 "("
+          STRING@339..346 "\"woff2\""
+          R_PAREN@346..347 ")"
+      NEWLINE@347..348 "\n"
+      R_BRACE@348..349 "}"
+  NEWLINE@349..350 "\n"
+  NEWLINE@350..351 "\n"
+  AT_RULE@351..419
+    AT_KEYWORD@351..361 "@keyframes"
+    WHITESPACE@361..362 " "
+    PRELUDE@362..366
+      IDENT@362..366 "spin"
+    WHITESPACE@366..367 " "
+    BLOCK@367..419
+      L_BRACE@367..368 "{"
+      NEWLINE@368..369 "\n"
+      WHITESPACE@369..371 "  "
+      RULE@371..392
+        SELECTOR@371..375
+          IDENT@371..375 "from"
+        WHITESPACE@375..376 " "
+        BLOCK@376..392
+          L_BRACE@376..377 "{"
+          WHITESPACE@377..378 " "
+          DECLARATION@378..390
+            PROPERTY@378..384
+              IDENT@378..384 "rotate"
+            COLON@384..385 ":"
+            WHITESPACE@385..386 " "
+            VALUE@386..390
+              NUMBER@386..390 "0deg"
+          WHITESPACE@390..391 " "
+          R_BRACE@391..392 "}"
+      NEWLINE@392..393 "\n"
+      WHITESPACE@393..395 "  "
+      RULE@395..417
+        SELECTOR@395..398
+          NUMBER@395..398 "50%"
+        WHITESPACE@398..399 " "
+        BLOCK@399..417
+          L_BRACE@399..400 "{"
+          WHITESPACE@400..401 " "
+          DECLARATION@401..415
+            PROPERTY@401..407
+              IDENT@401..407 "rotate"
+            COLON@407..408 ":"
+            WHITESPACE@408..409 " "
+            VALUE@409..415
+              NUMBER@409..415 "180deg"
+          WHITESPACE@415..416 " "
+          R_BRACE@416..417 "}"
+      NEWLINE@417..418 "\n"
+      R_BRACE@418..419 "}"
+  NEWLINE@419..420 "\n"
+  EOF@420..420 ""

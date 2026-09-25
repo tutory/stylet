@@ -1,0 +1,29 @@
+@import 'base/reset'
+@import "/client/fonts" layer(fonts)
+@import url(legacy.css) layer
+@layer reset, core
+@custom-media --phone (width <= 600px)
+
+$btn {
+  padding: 4px
+}
+
+.button {
+  @extend $btn
+  @extends $btn, $other
+
+  @media screen and
+    (--phone) {
+    padding: 8px
+  }
+}
+
+@font-face {
+  font-family: X
+  src: url(x.woff2) format("woff2")
+}
+
+@keyframes spin {
+  from { rotate: 0deg }
+  50% { rotate: 180deg }
+}

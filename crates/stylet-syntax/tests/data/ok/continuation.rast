@@ -1,0 +1,76 @@
+ROOT@0..161
+  RULE@0..160
+    SELECTOR@0..6
+      DOT@0..1 "."
+      IDENT@1..2 "a"
+      COMMA@2..3 ","
+      NEWLINE@3..4 "\n"
+      DOT@4..5 "."
+      IDENT@5..6 "b"
+    NEWLINE@6..7 "\n"
+    BLOCK@7..160
+      L_BRACE@7..8 "{"
+      NEWLINE@8..9 "\n"
+      WHITESPACE@9..11 "  "
+      DECLARATION@11..51
+        PROPERTY@11..21
+          IDENT@11..21 "transition"
+        COLON@21..22 ":"
+        WHITESPACE@22..23 " "
+        VALUE@23..51
+          IDENT@23..30 "opacity"
+          WHITESPACE@30..31 " "
+          NUMBER@31..33 "1s"
+          COMMA@33..34 ","
+          NEWLINE@34..35 "\n"
+          WHITESPACE@35..39 "    "
+          IDENT@39..48 "transform"
+          WHITESPACE@48..49 " "
+          NUMBER@49..51 "2s"
+      NEWLINE@51..52 "\n"
+      WHITESPACE@52..54 "  "
+      DECLARATION@54..106
+        PROPERTY@54..73
+          IDENT@54..73 "grid-template-areas"
+        COLON@73..74 ":"
+        WHITESPACE@74..75 " "
+        VALUE@75..106
+          STRING@75..90 "\"header header\""
+          NEWLINE@90..91 "\n"
+          WHITESPACE@91..95 "    "
+          STRING@95..106 "\"main side\""
+      NEWLINE@106..107 "\n"
+      WHITESPACE@107..109 "  "
+      DECLARATION@109..142
+        PROPERTY@109..119
+          IDENT@109..119 "box-shadow"
+        COLON@119..120 ":"
+        WHITESPACE@120..121 " "
+        VALUE@121..142
+          L_PAREN@121..122 "("
+          NEWLINE@122..123 "\n"
+          WHITESPACE@123..127 "    "
+          NUMBER@127..128 "0"
+          WHITESPACE@128..129 " "
+          NUMBER@129..130 "0"
+          WHITESPACE@130..131 " "
+          NUMBER@131..134 "1px"
+          WHITESPACE@134..135 " "
+          IDENT@135..138 "red"
+          NEWLINE@138..139 "\n"
+          WHITESPACE@139..141 "  "
+          R_PAREN@141..142 ")"
+      NEWLINE@142..143 "\n"
+      NEWLINE@143..144 "\n"
+      WHITESPACE@144..146 "  "
+      DECLARATION@146..158
+        PROPERTY@146..153
+          IDENT@146..153 "content"
+        COLON@153..154 ":"
+        WHITESPACE@154..155 " "
+        VALUE@155..158
+          STRING@155..158 "\"x\""
+      NEWLINE@158..159 "\n"
+      R_BRACE@159..160 "}"
+  NEWLINE@160..161 "\n"
+  EOF@161..161 ""
