@@ -1,0 +1,28 @@
+color: red
+& .a { color: red }
+
+@media print {
+  color: red
+}
+
+.a {
+  @font-face {
+    font-family: X
+  }
+  @custom-media --x (width < 1px)
+  @keyframes x {}
+}
+
+@keyframes k {
+  color: red
+  from { color: red }
+}
+
+@font-face {
+  .a { color: red }
+}
+
+@import 'x'
+$p { color: red }
+.b { @extend $p }
+.c { color: red; }

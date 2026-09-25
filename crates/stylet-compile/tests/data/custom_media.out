@@ -1,0 +1,47 @@
+@media (width <= 600px) {
+  .a {
+    color: red;
+  }
+}
+
+@media screen and ((width <= 600px) and (orientation: landscape)) {
+  .b {
+    color: red;
+  }
+}
+
+@media not (orientation: landscape) {
+  .c {
+    color: red;
+  }
+}
+
+@media print {
+  .d {
+    color: red;
+  }
+}
+
+@media screen and (--print) {
+  .e {
+    color: red;
+  }
+}
+
+@media (--unknown) {
+  .f {
+    color: red;
+  }
+}
+
+@media (--loop) {
+  .g {
+    color: red;
+  }
+}
+--- minified
+@media (width <= 600px){.a{color:red;}}@media screen and ((width <= 600px) and (orientation: landscape)){.b{color:red;}}@media not (orientation: landscape){.c{color:red;}}@media print{.d{color:red;}}@media screen and (--print){.e{color:red;}}@media (--unknown){.f{color:red;}}@media (--loop){.g{color:red;}}
+--- diagnostics
+Error 427..476 "@media screen and (--print) { .e { color: red } }": custom media `--print` contains a media type or list and can't be combined with other conditions
+Error 477..517 "@media (--unknown) { .f { color: red } }": unknown custom media `--unknown`
+Error 518..555 "@media (--loop) { .g { color: red } }": custom media `--loop` references itself

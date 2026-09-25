@@ -1,0 +1,14 @@
+// options: resolve_custom_media
+@custom-media --phone (width <= 600px)
+@custom-media --landscape (orientation: landscape)
+@custom-media --phone-landscape (--phone) and (--landscape)
+@custom-media --print print
+@custom-media --loop (--loop)
+
+@media (--phone) { .a { color: red } }
+@media screen and (--phone-landscape) { .b { color: red } }
+@media not (--landscape) { .c { color: red } }
+@media (--print) { .d { color: red } }
+@media screen and (--print) { .e { color: red } }
+@media (--unknown) { .f { color: red } }
+@media (--loop) { .g { color: red } }

@@ -84,6 +84,7 @@ dependencies = [
 name = "stylet-compile"
 version = "0.0.0"
 dependencies = [
+ "expect-test",
  "stylet-resolve",
  "stylet-syntax",
 ]

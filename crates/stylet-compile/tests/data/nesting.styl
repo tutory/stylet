@@ -1,0 +1,25 @@
+// dropped
+/* kept */
+.button, .link:hover   >   a {
+  color: red
+  transition: opacity 1s,
+    transform 2s // trailing
+  --empty:
+
+  &:hover {
+    color: rgba(0, 0, 0, .5) !important
+  }
+
+  @media (width >= 600px) {
+    padding: calc(1px + 2px)
+  }
+
+  .empty {}
+}
+
+.one { margin: 0 auto }
+
+@layer reset, core
+@layer core {
+  a { color: blue }
+}

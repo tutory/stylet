@@ -1,0 +1,21 @@
+@charset "utf-8"
+@custom-media --phone (width <= 600px)
+
+@font-face {
+  font-family: X
+  src: url(x.woff2) format("woff2"),
+    url(x.woff) format("woff")
+}
+
+@keyframes spin {
+  from { rotate: 0deg }
+  to { rotate: 360deg }
+}
+
+@media (--phone) {
+  .a { color: red }
+}
+
+@supports (display: grid) {
+  @media print {}
+}
