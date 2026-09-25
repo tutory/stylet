@@ -14,10 +14,18 @@ pub use rowan::{TextRange, TextSize};
 use rowan::GreenNode;
 use std::fmt;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorKind {
+    /// A `;`. Harmless: the formatter removes it.
+    Semicolon,
+    Other,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyntaxError {
     message: String,
     range: TextRange,
+    kind: ErrorKind,
 }
 
 impl SyntaxError {
@@ -25,7 +33,17 @@ impl SyntaxError {
         Self {
             message: message.into(),
             range,
+            kind: ErrorKind::Other,
         }
+    }
+
+    pub fn with_kind(mut self, kind: ErrorKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    pub fn kind(&self) -> ErrorKind {
+        self.kind
     }
 
     pub fn message(&self) -> &str {

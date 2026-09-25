@@ -8,30 +8,33 @@ ROOT@0..45
       L_BRACE@3..4 "{"
       NEWLINE@4..5 "\n"
       WHITESPACE@5..7 "  "
-      DECLARATION@7..18
+      DECLARATION@7..17
         PROPERTY@7..12
           IDENT@7..12 "color"
         COLON@12..13 ":"
         WHITESPACE@13..14 " "
-        VALUE@14..18
+        VALUE@14..17
           IDENT@14..17 "red"
-          ERROR@17..18
-            SEMICOLON@17..18 ";"
+      ERROR@17..18
+        SEMICOLON@17..18 ";"
       NEWLINE@18..19 "\n"
       WHITESPACE@19..21 "  "
-      DECLARATION@21..42
+      DECLARATION@21..30
         PROPERTY@21..27
           IDENT@21..27 "margin"
         COLON@27..28 ":"
         WHITESPACE@28..29 " "
-        VALUE@29..42
+        VALUE@29..30
           NUMBER@29..30 "0"
-          ERROR@30..31
-            SEMICOLON@30..31 ";"
-          WHITESPACE@31..32 " "
+      ERROR@30..31
+        SEMICOLON@30..31 ";"
+      WHITESPACE@31..32 " "
+      DECLARATION@32..42
+        PROPERTY@32..39
           IDENT@32..39 "padding"
-          COLON@39..40 ":"
-          WHITESPACE@40..41 " "
+        COLON@39..40 ":"
+        WHITESPACE@40..41 " "
+        VALUE@41..42
           NUMBER@41..42 "0"
       NEWLINE@42..43 "\n"
       R_BRACE@43..44 "}"

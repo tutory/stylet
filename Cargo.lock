@@ -453,6 +453,7 @@ dependencies = [
  "stylet-fmt",
  "stylet-migrate",
  "stylet-resolve",
+ "stylet-syntax",
  "tempfile",
  "toml",
 ]
@@ -470,6 +471,8 @@ dependencies = [
 name = "stylet-fmt"
 version = "0.0.0"
 dependencies = [
+ "expect-test",
+ "stylet-compile",
  "stylet-syntax",
 ]
 

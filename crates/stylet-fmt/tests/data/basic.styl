@@ -1,0 +1,24 @@
+// header comment
+
+
+@import   'a'
+@import "b"   layer( base )
+.a,.b   >   .c{color:red
+  background :   url(x.png)   no-repeat // trailing
+     --empty:
+
+
+
+  &:hover { color: blue }
+  .empty {}
+  @media   (width>=600px)   { padding: 0 }
+}
+$btn { padding: 4px }
+.x {
+  @extends $btn,$other
+}
+/* block
+   comment */
+.y { // after brace
+  color: red /* inline */
+}

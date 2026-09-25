@@ -1,5 +1,6 @@
 mod build;
 mod config;
+mod fmt;
 mod report;
 
 use clap::{Parser, Subcommand};
@@ -39,6 +40,15 @@ enum Command {
         /// Rebuild when inputs change.
         #[arg(short, long)]
         watch: bool,
+    },
+    /// Format files in place. Directories are searched for `.styl` files;
+    /// `-` formats stdin to stdout.
+    Fmt {
+        /// Files or directories (default: the current directory).
+        paths: Vec<PathBuf>,
+        /// Only report files that aren't formatted; exit with 1 if there are any.
+        #[arg(long)]
+        check: bool,
     },
 }
 
@@ -120,6 +130,10 @@ fn run(cli: Cli) -> Result<bool, String> {
             } else {
                 Ok(build::build(&config, &build))
             }
+        }
+        Command::Fmt { paths, check } => {
+            let options = config.fmt.options()?;
+            fmt::run(&paths, check, &options, &cwd)
         }
     }
 }

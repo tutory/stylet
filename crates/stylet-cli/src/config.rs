@@ -18,6 +18,8 @@ pub struct Config {
     pub aliases: BTreeMap<String, PathBuf>,
     #[serde(default)]
     pub build: Build,
+    #[serde(default)]
+    pub fmt: Fmt,
     #[serde(default, rename = "entry")]
     pub entries: Vec<Entry>,
     /// Directory of the config file; set after loading.
@@ -34,6 +36,40 @@ pub struct Build {
     pub source_map: bool,
     #[serde(default)]
     pub resolve_custom_media: bool,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Fmt {
+    /// Spaces per level, or `"tab"`.
+    #[serde(default)]
+    pub indent: Option<IndentSetting>,
+    #[serde(default)]
+    pub sort_properties: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum IndentSetting {
+    Spaces(u8),
+    Keyword(String),
+}
+
+impl Fmt {
+    pub fn options(&self) -> Result<stylet_fmt::Options, String> {
+        let indent = match &self.indent {
+            None => stylet_fmt::Indent::default(),
+            Some(IndentSetting::Spaces(n)) => stylet_fmt::Indent::Spaces(*n),
+            Some(IndentSetting::Keyword(k)) if k == "tab" => stylet_fmt::Indent::Tabs,
+            Some(IndentSetting::Keyword(k)) => {
+                return Err(format!("fmt.indent must be a number or \"tab\", not {k:?}"));
+            }
+        };
+        Ok(stylet_fmt::Options {
+            indent,
+            sort_properties: self.sort_properties,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -102,6 +138,9 @@ mod tests {
             "@/" = "client"
             [build]
             minify = true
+            [fmt]
+            indent = "tab"
+            sort_properties = true
             [[entry]]
             input = "a.styl"
             output = "a.css"
@@ -109,6 +148,9 @@ mod tests {
         )
         .unwrap();
         assert!(config.build.minify);
+        let fmt = config.fmt.options().unwrap();
+        assert_eq!(fmt.indent, stylet_fmt::Indent::Tabs);
+        assert!(fmt.sort_properties);
         assert_eq!(config.entries.len(), 1);
         assert_eq!(config.aliases["@/"], Path::new("client"));
         assert!(toml::from_str::<Config>("nope = 1").is_err());

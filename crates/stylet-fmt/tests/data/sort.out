@@ -1,0 +1,19 @@
+// options: sort
+.a {
+  --b: 1
+  --a: 2
+  color: red
+  display: flex
+  display: grid
+  margin: 0
+  margin-top: 1px
+
+  all: unset
+  z-index: 1
+  .nested {
+    a: 2
+    b: 1
+  }
+  inset: 0
+  top: 0
+}

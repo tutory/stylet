@@ -4,9 +4,9 @@
 //! trailing comma, a `{` on the next line, or a more indented string line), or
 //! at a `{` / `}` on the same line.
 
-use crate::SyntaxError;
 use crate::SyntaxKind::{self, *};
 use crate::lexer::Token;
+use crate::{ErrorKind, SyntaxError};
 use rowan::{GreenNode, GreenNodeBuilder, TextRange};
 
 /// At-rules whose prelude always runs until the opening `{`, across lines.
@@ -99,10 +99,10 @@ impl Parser<'_> {
     fn bump_until(&mut self, end: usize) {
         while self.pos < end {
             if self.current() == SEMICOLON {
-                self.error_at(
-                    self.pos,
-                    "stylet doesn't use semicolons; end the line instead",
-                );
+                let range = self.tokens[self.pos].range;
+                let message = "stylet doesn't use semicolons; end the line instead";
+                self.errors
+                    .push(SyntaxError::new(message, range).with_kind(ErrorKind::Semicolon));
                 self.builder.start_node(ERROR.into());
                 self.bump();
                 self.builder.finish_node();
@@ -141,6 +141,9 @@ impl Parser<'_> {
                     self.builder.start_node(ERROR.into());
                     self.bump();
                     self.builder.finish_node();
+                }
+                SEMICOLON => {
+                    self.bump_until(self.pos + 1);
                 }
                 _ => self.statement(depth),
             }
@@ -197,6 +200,7 @@ impl Parser<'_> {
                 R_BRACE => break Terminator::RBrace,
                 L_PAREN | L_BRACK => depth += 1,
                 R_PAREN | R_BRACK => depth = depth.saturating_sub(1),
+                SEMICOLON if depth == 0 => break Terminator::Newline,
                 NEWLINE if depth == 0 && !until_brace && !self.continues(i, last_sig, indent) => {
                     break Terminator::Newline;
                 }
