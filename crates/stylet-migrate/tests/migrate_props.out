@@ -1,24 +1,27 @@
 === /p/components/button.styl
 .button,
 .link {
-  display: flex
-  justify-content: space-between
-  align-items: center
-  text-overflow: ellipsis
-  white-space: nowrap
-  gap: calc(var(--gap) * 2)
-  margin: var(--alias)
   box-shadow: var(--shadow)
   color: color-mix(in srgb, var(--black) 80%, transparent)
-  width: calc(100% - 10px)
+  display: flex
   font: 12px/1.5 sans-serif
+  gap: calc(var(--gap) * 2)
+  margin: var(--alias)
+  align-items: center
+  justify-content: space-between
+  text-overflow: ellipsis
+  white-space: nowrap
+  width: calc(100% - 10px)
   @extend $focus
+
   &:hover {
     color: red // hover
   }
+
   @media (max-width: 600px) {
     padding: 0
   }
+
   // stylet-migrate: for n in 1..2
   // stylet-migrate:   .l-{n}
   // stylet-migrate:     x: n

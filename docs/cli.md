@@ -28,9 +28,15 @@ stylet fmt --check         # list unformatted files, exit 1 if there are any
 stylet fmt -               # stdin to stdout (for editors)
 ```
 
-The formatter keeps comments and up to one blank line, puts every statement on its
-own line, keeps line breaks inside values as continuation lines and removes
-semicolons. It refuses files with syntax errors.
+The formatter is opinionated: every rule below is on by default and can be switched
+off in `stylet.toml`. It keeps comments and up to one blank line, puts every statement
+on its own line, keeps line breaks inside values as continuation lines, removes
+semicolons, adds blank lines around blocks and `@import` groups, puts one selector
+per line, normalizes spacing around commas and parentheses, writes strings in single
+quotes and fractions without a leading zero, and sorts properties (shorthands before
+their longhands, otherwise alphabetical). Runs where a shorthand follows one of its
+longhands — which then overrides it on purpose — are left unsorted. It refuses files
+with syntax errors.
 
 Continuation lines that start with a string are aligned to the first string, so
 `grid-template-areas` reads as a grid:
@@ -76,10 +82,16 @@ input = "client/admin/index.styl"
 output = "public/dist/admin.css"
 
 [fmt]
-indent = 2              # spaces, or "tab"
-sort_properties = false # shorthands before longhands, otherwise alphabetical
-nested_blocks_last = false # nested rules/at-rules below the declarations
-align_strings = true    # align continuation lines of strings (grid-template-areas)
+indent = 2                        # spaces, or "tab"
+sort_properties = true            # shorthands before longhands, otherwise alphabetical
+nested_blocks_last = false        # nested rules/at-rules below the declarations
+align_strings = true              # align continuation lines of strings (grid-template-areas)
+blank_lines_around_blocks = true  # blank line before and after every block
+blank_lines_around_imports = true # blank line around each group of @imports
+selector_per_line = true          # one selector per line in selector lists
+normalize_spacing = true          # `a, b`, `(a)`: space after commas, none inside parentheses
+single_quotes = true              # 'strings' (unless they contain a single quote)
+leading_zero = false              # .5 instead of 0.5
 ```
 
 Command-line flags add to the `[build]` settings.

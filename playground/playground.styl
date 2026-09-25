@@ -12,16 +12,16 @@ body {
   color: var(--text)
   display: flex
   flex-direction: column
-  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif
+  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif
 }
 
 header {
-  align-items: center
   border-bottom: 1px solid var(--border)
   display: flex
   flex-wrap: wrap
   gap: .5rem 1rem
   padding: .75rem 1rem
+  align-items: center
 }
 
 h1 {
@@ -50,10 +50,10 @@ h2 {
 }
 
 label {
-  align-items: center
   display: inline-flex
   flex: none
   gap: .3rem
+  align-items: center
   white-space: nowrap
 }
 
@@ -112,8 +112,8 @@ main {
 /* Once highlighting works, the textarea only shows the caret and selection. */
 .highlighted .editor textarea {
   background: transparent
-  color: transparent
   caret-color: var(--text)
+  color: transparent
 }
 
 .editor pre {

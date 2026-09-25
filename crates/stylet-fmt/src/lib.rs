@@ -7,7 +7,7 @@
 
 mod sort;
 
-use stylet_syntax::SyntaxKind::*;
+use stylet_syntax::SyntaxKind::{self, *};
 use stylet_syntax::{ErrorKind, SyntaxElement, SyntaxError, SyntaxNode, SyntaxToken};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,15 +34,33 @@ pub struct Options {
     /// Align continuation lines that start with a string (`grid-template-areas`)
     /// to the first string's quote.
     pub align_strings: bool,
+    /// A blank line before and after every block (rules, at-rules with a block).
+    pub blank_lines_around_blocks: bool,
+    /// A blank line before and after each group of `@import`s.
+    pub blank_lines_around_imports: bool,
+    /// One selector per line in selector lists.
+    pub selector_per_line: bool,
+    /// `a, b` after commas, nothing before; no spaces just inside parentheses.
+    pub normalize_spacing: bool,
+    /// Strings in single quotes (unless they contain one).
+    pub single_quotes: bool,
+    /// Keep the leading zero of fractions (`0.5`); `false` writes `.5`.
+    pub leading_zero: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
             indent: Indent::default(),
-            sort_properties: false,
+            sort_properties: true,
             nested_blocks_last: false,
             align_strings: true,
+            blank_lines_around_blocks: true,
+            blank_lines_around_imports: true,
+            selector_per_line: true,
+            normalize_spacing: true,
+            single_quotes: true,
+            leading_zero: false,
         }
     }
 }
@@ -113,12 +131,14 @@ impl Printer<'_> {
     /// a comment before the first line break trails it.
     fn items(&mut self, parent: &SyntaxNode, depth: usize, in_block: bool) {
         let mut entries = self.entries(parent, in_block);
-        if self.options.sort_properties {
-            sort_declarations(&mut entries);
-        }
+        // Move blocks first so that sorting sees the final runs of declarations.
         if self.options.nested_blocks_last && in_block {
             entries = nested_blocks_last(entries);
         }
+        if self.options.sort_properties {
+            sort_declarations(&mut entries);
+        }
+        self.force_blank_lines(&mut entries);
         for (i, entry) in entries.iter().enumerate() {
             if entry.blank_before && i > 0 {
                 self.out.push('\n');
@@ -132,6 +152,48 @@ impl Printer<'_> {
                 self.out.push(' ');
                 self.out += comment.text();
             }
+        }
+    }
+
+    /// Blank lines around blocks and `@import` groups. A block's blank line goes
+    /// above the comments directly attached to it.
+    fn force_blank_lines(&self, entries: &mut [Entry]) {
+        let kind = |e: &Entry| e.element.as_node().map(|n| n.kind());
+        let is_block = |e: &Entry| {
+            e.element.as_node().is_some_and(|n| match n.kind() {
+                RULE | PLACEHOLDER => true,
+                AT_RULE => n.children().any(|c| c.kind() == BLOCK),
+                _ => false,
+            })
+        };
+        let is_import = |e: &Entry| kind(e) == Some(IMPORT);
+        let mut blank = vec![false; entries.len()];
+        for i in 0..entries.len() {
+            let grouped = (self.options.blank_lines_around_blocks && is_block(&entries[i]))
+                || (self.options.blank_lines_around_imports
+                    && is_import(&entries[i])
+                    && !entries.get(i.wrapping_sub(1)).is_some_and(is_import));
+            if grouped {
+                // Start of the block including comments directly above it.
+                let mut start = i;
+                while start > 0
+                    && entries[start - 1].element.as_token().is_some()
+                    && !entries[start].blank_before
+                {
+                    start -= 1;
+                }
+                blank[start] = true;
+            }
+            let ends_group = (self.options.blank_lines_around_blocks && is_block(&entries[i]))
+                || (self.options.blank_lines_around_imports
+                    && is_import(&entries[i])
+                    && !entries.get(i + 1).is_some_and(is_import));
+            if ends_group && i + 1 < entries.len() {
+                blank[i + 1] = true;
+            }
+        }
+        for (entry, blank) in entries.iter_mut().zip(blank) {
+            entry.blank_before |= blank;
         }
     }
 
@@ -184,7 +246,7 @@ impl Printer<'_> {
         for element in node.children_with_tokens() {
             match element {
                 SyntaxElement::Node(child) => match child.kind() {
-                    SELECTOR => self.tokens(&child, depth, false),
+                    SELECTOR => self.tokens(&child, depth, Cx::Selector),
                     PROPERTY => self.out += &child.text().to_string(),
                     VALUE | PRELUDE => {
                         if !self.out.ends_with(' ') {
@@ -193,8 +255,12 @@ impl Printer<'_> {
                         if node.kind() == EXTEND {
                             self.extend_targets(&child);
                         } else {
-                            let align = child.kind() == VALUE && self.options.align_strings;
-                            self.tokens(&child, depth + 1, align);
+                            let cx = if child.kind() == VALUE {
+                                Cx::Value
+                            } else {
+                                Cx::Prelude
+                            };
+                            self.tokens(&child, depth + 1, cx);
                         }
                     }
                     BLOCK => self.block(&child, depth),
@@ -250,8 +316,12 @@ impl Printer<'_> {
     /// one space, line breaks become continuation lines at `continuation` depth,
     /// comments are kept. With `align`, continuation lines starting with a
     /// string are aligned to the first string of the value.
-    fn tokens(&mut self, node: &SyntaxNode, continuation: usize, align: bool) {
+    fn tokens(&mut self, node: &SyntaxNode, continuation: usize, cx: Cx) {
+        let align = cx == Cx::Value && self.options.align_strings;
+        let spacing = self.options.normalize_spacing;
         let mut pending: Option<Gap> = None;
+        let mut prev: Option<SyntaxKind> = None;
+        let mut parens = 0usize;
         // Whitespace up to the first string's column on its line.
         let mut string_column: Option<String> = None;
         for token in node
@@ -273,6 +343,22 @@ impl Printer<'_> {
                     pending = (kind == LINE_COMMENT).then_some(Gap::Newline);
                 }
                 _ => {
+                    if spacing {
+                        // No space before `,` or `)` and after `(`; one after `,`.
+                        let tight = matches!(kind, COMMA | R_PAREN) || prev == Some(L_PAREN);
+                        match pending {
+                            Some(Gap::Space) if tight => pending = None,
+                            None if prev == Some(COMMA) && !tight => pending = Some(Gap::Space),
+                            _ => {}
+                        }
+                    }
+                    if cx == Cx::Selector
+                        && self.options.selector_per_line
+                        && prev == Some(COMMA)
+                        && parens == 0
+                    {
+                        pending = Some(Gap::Newline);
+                    }
                     match (pending.take(), &string_column) {
                         (Some(Gap::Newline), Some(column)) if align && kind == STRING => {
                             let column = column.clone();
@@ -302,7 +388,20 @@ impl Printer<'_> {
                             .collect();
                         string_column = Some(column);
                     }
-                    self.out += token.text();
+                    match kind {
+                        L_PAREN => parens += 1,
+                        R_PAREN => parens = parens.saturating_sub(1),
+                        _ => {}
+                    }
+                    let text = token.text();
+                    match kind {
+                        STRING if self.options.single_quotes => self.out += &single_quoted(text),
+                        NUMBER if !self.options.leading_zero => {
+                            self.out += &without_leading_zero(text)
+                        }
+                        _ => self.out += text,
+                    }
+                    prev = Some(kind);
                 }
             }
         }
@@ -313,6 +412,39 @@ impl Printer<'_> {
             Gap::Space => self.space(),
             Gap::Newline => self.newline(continuation),
         }
+    }
+}
+
+/// What a token run belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Cx {
+    Selector,
+    Value,
+    Prelude,
+}
+
+/// `"x"` → `'x'` unless the content has a `'`.
+fn single_quoted(text: &str) -> String {
+    let Some(inner) = text.strip_prefix('"').and_then(|t| t.strip_suffix('"')) else {
+        return text.to_string();
+    };
+    if inner.contains('\'') || inner.ends_with('\\') {
+        return text.to_string();
+    }
+    format!("'{}'", inner.replace("\\\"", "\""))
+}
+
+/// `0.5em` → `.5em`, `-0.5` → `-.5`.
+fn without_leading_zero(text: &str) -> String {
+    let (sign, rest) = match text.strip_prefix(['-', '+']) {
+        Some(rest) => (&text[..1], rest),
+        None => ("", text),
+    };
+    match rest.strip_prefix("0.") {
+        Some(fraction) if fraction.starts_with(|c: char| c.is_ascii_digit()) => {
+            format!("{sign}.{fraction}")
+        }
+        _ => text.to_string(),
     }
 }
 
@@ -387,6 +519,17 @@ fn sort_declarations(entries: &mut [Entry]) {
         if end - start > 1 {
             let blank = entries[start].blank_before;
             let run = &mut entries[start..end];
+            let keys: Vec<_> = run
+                .iter()
+                .map(|e| sort::key(&e.declaration_property().unwrap_or_default()))
+                .collect();
+            // A shorthand after its longhand overrides it; keep such runs as they are.
+            let unsafe_order = (0..keys.len())
+                .any(|i| (i + 1..keys.len()).any(|j| sort::overrides(&keys[i], &keys[j])));
+            if unsafe_order {
+                start = end;
+                continue;
+            }
             run.sort_by_cached_key(|e| sort::key(&e.declaration_property().unwrap_or_default()));
             for (i, entry) in run.iter_mut().enumerate() {
                 entry.blank_before = i == 0 && blank;

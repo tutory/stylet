@@ -206,7 +206,7 @@ fn root_selectors() {
     );
     assert_eq!(
         migration.files[Path::new("/p/index.styl")],
-        "#editor {\n  x: y\n}\n.page {\n  .a {\n    x: y\n  }\n}\n"
+        "#editor {\n  x: y\n}\n\n.page {\n  .a {\n    x: y\n  }\n}\n"
     );
 }
 

@@ -1,13 +1,13 @@
 .a,
 .b,
 .c {
-  transition: opacity 1s,
-    transform 2s
-  grid-template-areas: "a b"
-                       "c d"
   box-shadow: (
     0 0 1px red // first
   )
+  grid-template-areas: 'a b'
+                       'c d'
+  transition: opacity 1s,
+    transform 2s
 }
 
 @media screen and

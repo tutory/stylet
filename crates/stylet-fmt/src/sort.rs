@@ -67,6 +67,15 @@ pub fn key(property: &str) -> SortKey {
     }
 }
 
+/// Whether `later` may override `earlier`: a shorthand after one of its
+/// longhands. Sorting would swap them and change the result.
+pub fn overrides(earlier: &SortKey, later: &SortKey) -> bool {
+    earlier.class == 2
+        && later.class == 2
+        && earlier.family == later.family
+        && later.depth < earlier.depth
+}
+
 fn class_key(class: u8) -> SortKey {
     SortKey {
         class,

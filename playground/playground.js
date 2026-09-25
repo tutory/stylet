@@ -165,7 +165,10 @@ function flash(button, text) {
 }
 
 $('format').addEventListener('click', () => {
-  const result = format(source.value, 2, options.sort.checked, options.nested.checked)
+  const result = format(source.value, {
+    sortProperties: options.sort.checked,
+    nestedBlocksLast: options.nested.checked,
+  })
   if (result.code == null) {
     showDiagnostics(result.diagnostics)
     flash($('format'), 'Fix errors first')

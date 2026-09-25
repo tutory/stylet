@@ -1,6 +1,6 @@
 //! Fixture tests: `tests/data/*.styl` formatted against `*.out`. Every fixture must
-//! format idempotently and compile to the same CSS before and after formatting.
-//! A first line `// options: sort` enables property sorting.
+//! format idempotently, and layout-only formatting must not change the compiled CSS.
+//! A first line `// options: no-sort nested no-align` sets options.
 //! Run with `UPDATE_EXPECT=1` to update the snapshots.
 
 use std::fs;
@@ -11,7 +11,37 @@ fn compile(src: &str) -> String {
     let options = stylet_compile::Options::default();
     let out = stylet_compile::compile_str(src, &options);
     let errors: Vec<_> = out.diagnostics.iter().map(|d| d.message.clone()).collect();
-    format!("{}{errors:?}", out.css)
+    // Spacing around commas and inside parentheses doesn't change the meaning.
+    let css = out
+        .css
+        .replace(", ", ",")
+        .replace(" ,", ",")
+        .replace("( ", "(")
+        .replace(" )", ")");
+    format!("{css}{errors:?}")
+}
+
+/// Layout-only formatting (no reordering, no value rewrites) must not change the CSS.
+fn check_layout_keeps_css(src: &str, path: &Path) {
+    if src.contains(';') {
+        return;
+    }
+    let layout = Options {
+        sort_properties: false,
+        nested_blocks_last: false,
+        single_quotes: false,
+        leading_zero: true,
+        ..Options::default()
+    };
+    let Ok(formatted) = format(src, &layout) else {
+        return;
+    };
+    assert_eq!(
+        compile(&formatted),
+        compile(src),
+        "same CSS: {}",
+        path.display()
+    );
 }
 
 #[test]
@@ -30,9 +60,8 @@ fn fixtures() {
             .next()
             .and_then(|l| l.strip_prefix("// options:"))
             .unwrap_or("");
-        let sort = flags.contains("sort");
         let options = Options {
-            sort_properties: sort,
+            sort_properties: !flags.contains("no-sort"),
             nested_blocks_last: flags.contains("nested"),
             align_strings: !flags.contains("no-align"),
             ..Options::default()
@@ -45,18 +74,7 @@ fn fixtures() {
             "idempotent: {}",
             path.display()
         );
-        // Sorting and moving blocks reorder the output on purpose.
-        if !sort && !options.nested_blocks_last {
-            let semicolons = src.contains(';');
-            if !semicolons {
-                assert_eq!(
-                    compile(&formatted),
-                    compile(&src),
-                    "same CSS: {}",
-                    path.display()
-                );
-            }
-        }
+        check_layout_keeps_css(&src, &path);
     }
 }
 
@@ -110,9 +128,7 @@ fn other_fixtures() {
                 "{}",
                 path.display()
             );
-            if !src.contains(';') {
-                assert_eq!(compile(&formatted), compile(&src), "{}", path.display());
-            }
+            check_layout_keeps_css(&src, &path);
         }
     }
 }

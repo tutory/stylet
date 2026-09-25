@@ -44,13 +44,16 @@ pub struct Fmt {
     /// Spaces per level, or `"tab"`.
     #[serde(default)]
     pub indent: Option<IndentSetting>,
-    #[serde(default)]
-    pub sort_properties: bool,
-    #[serde(default)]
-    pub nested_blocks_last: bool,
-    /// Defaults to `true`.
-    #[serde(default)]
+    // Unset keys use the formatter's defaults.
+    pub sort_properties: Option<bool>,
+    pub nested_blocks_last: Option<bool>,
     pub align_strings: Option<bool>,
+    pub blank_lines_around_blocks: Option<bool>,
+    pub blank_lines_around_imports: Option<bool>,
+    pub selector_per_line: Option<bool>,
+    pub normalize_spacing: Option<bool>,
+    pub single_quotes: Option<bool>,
+    pub leading_zero: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -70,11 +73,22 @@ impl Fmt {
                 return Err(format!("fmt.indent must be a number or \"tab\", not {k:?}"));
             }
         };
+        let d = stylet_fmt::Options::default();
         Ok(stylet_fmt::Options {
             indent,
-            sort_properties: self.sort_properties,
-            nested_blocks_last: self.nested_blocks_last,
-            align_strings: self.align_strings.unwrap_or(true),
+            sort_properties: self.sort_properties.unwrap_or(d.sort_properties),
+            nested_blocks_last: self.nested_blocks_last.unwrap_or(d.nested_blocks_last),
+            align_strings: self.align_strings.unwrap_or(d.align_strings),
+            blank_lines_around_blocks: self
+                .blank_lines_around_blocks
+                .unwrap_or(d.blank_lines_around_blocks),
+            blank_lines_around_imports: self
+                .blank_lines_around_imports
+                .unwrap_or(d.blank_lines_around_imports),
+            selector_per_line: self.selector_per_line.unwrap_or(d.selector_per_line),
+            normalize_spacing: self.normalize_spacing.unwrap_or(d.normalize_spacing),
+            single_quotes: self.single_quotes.unwrap_or(d.single_quotes),
+            leading_zero: self.leading_zero.unwrap_or(d.leading_zero),
         })
     }
 }
@@ -147,7 +161,7 @@ mod tests {
             minify = true
             [fmt]
             indent = "tab"
-            sort_properties = true
+            sort_properties = false
             [[entry]]
             input = "a.styl"
             output = "a.css"
@@ -157,7 +171,8 @@ mod tests {
         assert!(config.build.minify);
         let fmt = config.fmt.options().unwrap();
         assert_eq!(fmt.indent, stylet_fmt::Indent::Tabs);
-        assert!(fmt.sort_properties);
+        assert!(!fmt.sort_properties);
+        assert!(fmt.single_quotes);
         assert_eq!(config.entries.len(), 1);
         assert_eq!(config.aliases["@/"], Path::new("client"));
         assert!(toml::from_str::<Config>("nope = 1").is_err());

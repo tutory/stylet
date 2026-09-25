@@ -32,36 +32,51 @@
 
     <section class="example" aria-label="Example">
       <figure>
-        <figcaption>button.styl <span class="hint">— edit me</span></figcaption>
+        <figcaption>app.styl <span class="hint">— edit me</span></figcaption>
         <pre id="example-source"><code data-language="stylet">$button {
   border-radius: 4px
   padding: .5rem 1rem
 }
 
-.toolbar {
-  display: flex
-  gap: .5rem
+.app {
+  display: grid
+  grid-template-areas: 'header header'
+                       'nav    main'
+  grid-template-columns: 12rem 1fr
+  grid-template-rows: auto 1fr
+
+  @media (width &lt; 600px) {
+    grid-template-areas: 'header'
+                         'main'
+    grid-template-columns: 1fr
+  }
 
   .save {
     @extend $button
     background: var(--brand)
 
-    &:hover {
+    &amp;:hover {
       filter: brightness(1.1)
     }
   }
 }</code></pre>
       </figure>
       <figure>
-        <figcaption>button.css <a class="hint" id="open-playground" href="playground/">open in playground →</a></figcaption>
-        <pre id="example-output"><code data-language="css">.toolbar .save {
+        <figcaption>app.css <a class="hint" id="open-playground" href="playground/">open in playground →</a></figcaption>
+        <pre id="example-output"><code data-language="css">.app .save {
   border-radius: 4px;
   padding: .5rem 1rem;
 }
 
-.toolbar {
-  display: flex;
-  gap: .5rem;
+.app {
+  display: grid;
+  grid-template-areas: 'header header' 'nav    main';
+  grid-template-columns: 12rem 1fr;
+  grid-template-rows: auto 1fr;
+  @media (width &lt; 600px) {
+    grid-template-areas: 'header' 'main';
+    grid-template-columns: 1fr;
+  }
   .save {
     background: var(--brand);
     &amp;:hover {

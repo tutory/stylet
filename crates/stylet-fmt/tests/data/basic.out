@@ -1,26 +1,33 @@
 // header comment
 
 @import 'a'
-@import "b" layer( base )
-.a,.b > .c {
-  color: red
-  background: url(x.png) no-repeat // trailing
+@import 'b' layer(base)
+
+.a,
+.b > .c {
   --empty:
+  background: url(x.png) no-repeat // trailing
+  color: red
 
   &:hover {
     color: blue
   }
+
   .empty {}
+
   @media (width>=600px) {
     padding: 0
   }
 }
+
 $btn {
   padding: 4px
 }
+
 .x {
   @extend $btn, $other
 }
+
 /* block
    comment */
 .y { // after brace

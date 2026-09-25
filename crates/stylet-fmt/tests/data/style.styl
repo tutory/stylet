@@ -1,0 +1,19 @@
+@import "a"
+@import "b"
+.x {
+  color: red
+}
+.a,.b > .c, :is(.d,.e) {
+  background: rgba( 0,0,0 , 0.5 ) url("x.png")
+  content: "it's"
+  margin: -0.5em 0.25em
+  // title
+  .title { font-weight: 600 }
+  .body { padding: 0 }
+  z-index: 1
+}
+.safe {
+  margin-top: 1px
+  margin: 0
+  color: red
+}
