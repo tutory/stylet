@@ -1,0 +1,55 @@
+// Colors and fonts shared by the landing page and the playground.
+@custom-media --dark (prefers-color-scheme: dark)
+@custom-media --narrow (width < 720px)
+
+:root {
+  --bg: #fbfbfa
+  --panel: #ffffff
+  --text: #1d1d1f
+  --muted: #5f5f66
+  --border: #e3e3e6
+  --accent: #2a62d4
+  --accent-text: #ffffff
+  --error: #c62828
+  --warning: #9a6700
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace
+  --hl-comment: #6e7781
+  --hl-keyword: #cf222e
+  --hl-selector: #6639ba
+  --hl-attribute: #0550ae
+  --hl-string: #0a3069
+  --hl-number: #0550ae
+  --hl-variable: #953800
+  --hl-function: #8250df
+  color-scheme: light dark
+
+  @media (--dark) {
+    --bg: #141416
+    --panel: #1c1c1f
+    --text: #e8e8ea
+    --muted: #a0a0a8
+    --border: #2e2e33
+    --accent: #7aa2ff
+    --accent-text: #0d1117
+    --error: #ff7b72
+    --warning: #e3b341
+    --hl-comment: #8b949e
+    --hl-keyword: #ff7b72
+    --hl-selector: #d2a8ff
+    --hl-attribute: #79c0ff
+    --hl-string: #a5d6ff
+    --hl-number: #79c0ff
+    --hl-variable: #ffa657
+    --hl-function: #d2a8ff
+  }
+}
+
+* {
+  box-sizing: border-box
+}
+
+// Bordered surface for code and controls.
+$panel {
+  background: var(--panel)
+  border: 1px solid var(--border)
+}

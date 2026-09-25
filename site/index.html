@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stylet — a small successor to Stylus</title>
+  <meta name="description" content="stylet is CSS with nesting, imports and placeholder extends — a small, fast successor to Stylus, written in Rust.">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./">stylet</a>
+    <nav>
+      <a href="playground/">Playground</a>
+      <a href="https://github.com/tutory/stylet/tree/main/docs">Docs</a>
+      <a href="https://github.com/tutory/stylet">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>CSS, with the good parts of Stylus.</h1>
+      <p class="lead">
+        stylet is a small, fast successor to Stylus, written in Rust. Nesting, imports and
+        placeholder extends — no variables, mixins or functions. Everything else is plain CSS.
+      </p>
+      <p class="actions">
+        <a class="button primary" href="playground/">Try it in the playground</a>
+        <a class="button" href="https://github.com/tutory/stylet/blob/main/docs/language.md">Read the docs</a>
+      </p>
+    </section>
+
+    <section class="example" aria-label="Example">
+      <figure>
+        <figcaption>button.styl</figcaption>
+        <pre><code data-language="stylet">$button {
+  border-radius: 4px
+  padding: .5rem 1rem
+}
+
+.toolbar {
+  display: flex
+  gap: .5rem
+
+  .save {
+    @extend $button
+    background: var(--brand)
+
+    &:hover {
+      filter: brightness(1.1)
+    }
+  }
+}</code></pre>
+      </figure>
+      <figure>
+        <figcaption>button.css</figcaption>
+        <pre><code data-language="css">.toolbar .save {
+  border-radius: 4px;
+  padding: .5rem 1rem;
+}
+
+.toolbar {
+  display: flex;
+  gap: .5rem;
+  .save {
+    background: var(--brand);
+    &amp;:hover {
+      filter: brightness(1.1);
+    }
+  }
+}</code></pre>
+      </figure>
+    </section>
+
+    <section class="features">
+      <div>
+        <h2>Native nesting</h2>
+        <p>Blocks with <code>{}</code>, <code>prop: value</code>, no semicolons. Nesting is emitted as native CSS nesting, not flattened.</p>
+      </div>
+      <div>
+        <h2>A bundler</h2>
+        <p><code>@import</code> with aliases, layers and per-scope deduplication, <code>url()</code> rebasing, inlined assets, source maps and watch mode.</p>
+      </div>
+      <div>
+        <h2>Placeholders</h2>
+        <p><code>$placeholder</code> rules and <code>@extend</code>, resolved through nesting and imports — and nothing else to learn.</p>
+      </div>
+      <div>
+        <h2>Formatter</h2>
+        <p><code>stylet fmt</code> keeps comments, aligns <code>grid-template-areas</code> and can sort properties shorthand-first.</p>
+      </div>
+      <div>
+        <h2>Migration</h2>
+        <p><code>stylet migrate</code> converts Stylus projects: mixins are inlined, variables become custom properties.</p>
+      </div>
+      <div>
+        <h2>Fast</h2>
+        <p>A lossless Rust parser and a single binary. A 35,000-declaration app builds in about 30&nbsp;ms.</p>
+      </div>
+    </section>
+
+    <section class="start">
+      <h2>Get started</h2>
+      <pre><code data-language="bash"># install (from source, needs Rust)
+cargo install --git https://github.com/tutory/stylet stylet-cli
+
+stylet build src/index.styl -o dist/index.css --watch
+stylet fmt --check
+stylet migrate client/index.styl --dry-run   # coming from Stylus</code></pre>
+      <p>Configure entries, aliases and formatting in <a href="https://github.com/tutory/stylet/blob/main/docs/cli.md"><code>stylet.toml</code></a>.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>stylet is open source under the MIT or Apache-2.0 license · made by <a href="https://www.tutory.de">tutory</a></p>
+  </footer>
+
+  <script type="module" src="site.js"></script>
+</body>
+</html>

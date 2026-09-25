@@ -37,7 +37,7 @@ stylet fmt --check
 stylet migrate client/index.styl --dry-run
 ```
 
-See the [documentation](docs/README.md) and [PLAN.md](PLAN.md).
+See the [website](https://tutory.github.io/stylet/), the [documentation](docs/README.md) and [PLAN.md](PLAN.md).
 
 ## License
 

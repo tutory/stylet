@@ -1,4 +1,4 @@
-name: Playground
+name: Site
 
 on:
   push:
@@ -29,9 +29,9 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-bindgen@0.2.129
-      - run: playground/build.sh && node playground/test.mjs
+      - run: site/build.sh && node playground/test.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: playground
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
