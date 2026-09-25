@@ -209,3 +209,36 @@ fn root_selectors() {
         "#editor {\n  x: y\n}\n.page {\n  .a {\n    x: y\n  }\n}\n"
     );
 }
+
+/// `--custom-media`: variables in media conditions become `@custom-media`.
+#[test]
+fn custom_media() {
+    let mut fs = MemoryFs::default();
+    fs.insert(
+        "/p/index.styl",
+        "@import 'vars'\n.a\n  @media (max-width: phone)\n    b: c\n",
+    );
+    fs.insert("/p/vars.styl", "phone = 600px\n");
+    let options = Options {
+        custom_media: true,
+        ..Options::default()
+    };
+    let migration = migrate(
+        &fs,
+        Path::new("/p"),
+        &[PathBuf::from("/p/index.styl")],
+        &options,
+    );
+    assert_eq!(
+        migration.files[Path::new("/p/vars.styl")],
+        "@custom-media --phone-max-width (max-width: 600px)\n"
+    );
+    assert!(migration.files[Path::new("/p/index.styl")].contains("@media (--phone-max-width) {"));
+    let inline = migrate(
+        &fs,
+        Path::new("/p"),
+        &[PathBuf::from("/p/index.styl")],
+        &Options::default(),
+    );
+    assert!(inline.files[Path::new("/p/index.styl")].contains("@media (max-width: 600px) {"));
+}

@@ -273,6 +273,11 @@ fn eval_calc(s: &str) -> String {
                 if text == "-0" {
                     text = "0".into();
                 }
+                if let Some(rest) = text.strip_prefix("0.") {
+                    text = format!(".{rest}");
+                } else if let Some(rest) = text.strip_prefix("-0.") {
+                    text = format!("-.{rest}");
+                }
                 out.replace_range(start..=end, &format!("{text}{unit}"));
             }
             None => break,
@@ -376,8 +381,94 @@ fn norm_colors(s: &str) -> String {
     out
 }
 
+/// Final comparison form: `calc()` evaluated, decimals rounded.
+fn finalize(s: &str) -> String {
+    round_numbers(&eval_calc(s))
+}
+
+/// Color keywords Stylus prints as hex.
+const NAMED: &[(&str, &str)] = &[
+    ("cyan", "#00ffff"),
+    ("aqua", "#00ffff"),
+    ("magenta", "#ff00ff"),
+    ("fuchsia", "#ff00ff"),
+    ("grey", "#808080"),
+    ("gray", "#808080"),
+    ("white", "#ffffff"),
+    ("black", "#000000"),
+    ("red", "#ff0000"),
+    ("lime", "#00ff00"),
+    ("blue", "#0000ff"),
+    ("yellow", "#ffff00"),
+    ("silver", "#c0c0c0"),
+    ("orange", "#ffa500"),
+    ("green", "#008000"),
+];
+
+/// Replaces standalone color keywords (after a space, comma or paren) by hex.
+fn norm_names(s: &str) -> String {
+    let mut out = String::new();
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let boundary = i == 0 || matches!(chars[i - 1], ' ' | ',' | '(');
+        if boundary && chars[i].is_ascii_alphabetic() {
+            let end = (i..chars.len())
+                .find(|&j| !(chars[j].is_ascii_alphanumeric() || chars[j] == '-'))
+                .unwrap_or(chars.len());
+            let word: String = chars[i..end].iter().collect();
+            let after_ok = end == chars.len() || matches!(chars[end], ' ' | ',' | ')' | '!');
+            match NAMED.iter().find(|(n, _)| *n == word.to_ascii_lowercase()) {
+                Some((_, hex)) if after_ok => out += hex,
+                _ => out += &word,
+            }
+            i = end;
+            continue;
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+/// `#rgba` / `#rrggbbaa` → `rgba(r,g,b,a)`.
+fn hex_alpha(s: &str) -> String {
+    let mut out = String::new();
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '#' {
+            let hex: String = chars[i + 1..]
+                .iter()
+                .take_while(|c| c.is_ascii_hexdigit())
+                .collect();
+            if hex.len() == 4 || hex.len() == 8 {
+                let full: String = if hex.len() == 4 {
+                    hex.chars().flat_map(|c| [c, c]).collect()
+                } else {
+                    hex.clone()
+                };
+                let v = |k: usize| u8::from_str_radix(&full[k..k + 2], 16).unwrap_or(0);
+                let a = format!("{:.3}", v(6) as f64 / 255.0);
+                out += &format!(
+                    "rgba({},{},{},{})",
+                    v(0),
+                    v(2),
+                    v(4),
+                    a.trim_start_matches('0')
+                );
+                i += 1 + hex.len();
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
 fn norm_value(s: &str) -> String {
-    let mut s = round_numbers(&eval_calc(&norm_colors(&norm_space(s))));
+    let mut s = hex_alpha(&norm_names(&norm_colors(&norm_space(s))));
     s = s
         .replace(", ", ",")
         .replace(" ,", ",")
@@ -450,8 +541,19 @@ fn flatten(
                     name,
                     "@media" | "@supports" | "@container" | "@layer" | "@scope" | "@document"
                 ) {
-                    let ctx = format!("{context} {}", norm_value(prelude));
-                    flatten(children, parents, ctx.trim(), out, delta);
+                    let prelude = norm_value(prelude);
+                    // Stylus merges nested media: `@media a` › `@media b` → `@media a and b`.
+                    let ctx = match context.rsplit_once(" » ") {
+                        Some((head, last)) if last.starts_with("@media") && name == "@media" => {
+                            format!("{head} » {last} and {}", &prelude[7..])
+                        }
+                        None if context.starts_with("@media") && name == "@media" => {
+                            format!("{context} and {}", &prelude[7..])
+                        }
+                        _ if context.is_empty() => prelude,
+                        _ => format!("{context} » {prelude}"),
+                    };
+                    flatten(children, parents, &ctx, out, delta);
                 } else if children.is_empty() {
                     let key = (
                         context.to_string(),
@@ -461,12 +563,16 @@ fn flatten(
                     );
                     *out.entry(key).or_default() += delta;
                 } else {
-                    let ctx = format!("{context} {}", norm_value(prelude));
+                    let ctx = if context.is_empty() {
+                        norm_value(prelude)
+                    } else {
+                        format!("{context} » {}", norm_value(prelude))
+                    };
                     let own = vec![String::new()];
                     flatten(
                         children,
                         if name == "@keyframes" { &[] } else { &own },
-                        ctx.trim(),
+                        &ctx,
                         out,
                         delta,
                     );
@@ -521,7 +627,7 @@ fn main() {
         {
             continue;
         }
-        *diff.entry((ctx, sel, prop, value)).or_default() += n;
+        *diff.entry((ctx, sel, prop, finalize(&value))).or_default() += n;
     }
     let total: i32 = diff.values().sum();
     for ((ctx, sel, prop, value), n) in actual_map {
@@ -529,7 +635,7 @@ fn main() {
             continue;
         }
         *diff
-            .entry((ctx, sel, prop, norm_value(&substitute(&value))))
+            .entry((ctx, sel, prop, finalize(&norm_value(&substitute(&value)))))
             .or_default() -= n;
     }
     let missing: Vec<_> = diff.iter().filter(|(_, n)| **n > 0).collect();

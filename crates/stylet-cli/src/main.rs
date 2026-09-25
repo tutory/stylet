@@ -69,6 +69,10 @@ enum Command {
         /// Unroll `for` loops instead of commenting them out.
         #[arg(long)]
         unroll_loops: bool,
+        /// Turn variables in media conditions into `@custom-media` (build with
+        /// `resolve_custom_media = true` until browsers support it).
+        #[arg(long)]
+        custom_media: bool,
         /// Value for an identifier Stylus got from JS, e.g. `isDevelopment=false`.
         #[arg(long = "define", value_name = "NAME=VALUE")]
         defines: Vec<String>,
@@ -176,6 +180,7 @@ fn run(cli: Cli) -> Result<bool, String> {
             vars,
             var_prefix,
             unroll_loops,
+            custom_media,
             defines,
             preload,
         } => {
@@ -204,6 +209,7 @@ fn run(cli: Cli) -> Result<bool, String> {
                     },
                     var_prefix,
                     unroll_loops,
+                    custom_media,
                     defines,
                     preload: preload
                         .iter()

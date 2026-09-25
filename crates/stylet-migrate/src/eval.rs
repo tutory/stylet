@@ -46,6 +46,9 @@ pub struct Def {
     file: PathBuf,
 }
 
+/// Evaluated call arguments: (keyword, value).
+type Args = Vec<(Option<String>, Value)>;
+
 /// A block scope: Stylus scopes variables and mixins to the block (including
 /// files imported inside it).
 #[derive(Default)]
@@ -66,6 +69,8 @@ pub struct Usage {
     pub in_declarations: BTreeSet<String>,
     /// Custom properties declared anywhere in the sources (for collision checks).
     pub custom_properties: BTreeSet<String>,
+    /// (global, media feature) pairs like `(max-width: breakpointPhone)`.
+    pub media_features: BTreeSet<(String, String)>,
 }
 
 #[derive(Clone, Copy)]
@@ -117,6 +122,17 @@ pub struct Interp<'a, F> {
     calling: Vec<String>,
     /// Unknown functions: (warning index, name), to improve messages later.
     unknown_functions: Vec<(usize, String)>,
+    /// Results of calls to not-yet-defined functions, by CSS text; Stylus
+    /// re-evaluates them when a variable holding one is used later.
+    unresolved: HashMap<String, (String, Args)>,
+    /// With `--custom-media`: the (global, feature) pairs to turn into
+    /// `@custom-media` (from the first pass).
+    pub media_pairs: BTreeSet<(String, String)>,
+    /// How many imports inside style rules enclose the current file.
+    imported_in_rule: usize,
+    /// Placeholders defined in files imported inside a style rule: native
+    /// nesting can't express them, so `@extend`s get their body inlined.
+    inlined_placeholders: HashMap<String, Vec<Out>>,
     /// `--x: $x` declarations dropped because `$x` becomes `--x`.
     pub mirrors: BTreeSet<String>,
     /// (file, line, message) of warnings already reported.
@@ -164,6 +180,10 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             calling: Vec::new(),
             unknown_functions: Vec::new(),
             mirrors: BTreeSet::new(),
+            unresolved: HashMap::new(),
+            imported_in_rule: 0,
+            media_pairs: BTreeSet::new(),
+            inlined_placeholders: HashMap::new(),
             reported: HashSet::new(),
             lookup_paths: Vec::new(),
             output_file: PathBuf::new(),
@@ -177,6 +197,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             .retain(|name, _| self.options.defines.iter().any(|(n, _)| n == name));
         self.defs.clear();
         self.required.clear();
+        self.inlined_placeholders.clear();
         self.lookup_paths = self
             .options
             .preload
@@ -371,6 +392,29 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             StmtKind::Import { path, require } => self.import(stmt, path, *require, None, out, ctx),
             StmtKind::Extend(targets) => self.extend(stmt, targets, out, ctx),
             StmtKind::Rule { selectors, body }
+                if ctx.top_level
+                    && self.imported_in_rule > 0
+                    && selectors.len() == 1
+                    && is_placeholder(&selectors[0]) =>
+            {
+                let mut inner = Vec::new();
+                self.scopes.push(Scope::default());
+                let inner_ctx = Ctx {
+                    top_level: false,
+                    in_rule: true,
+                    ..ctx
+                };
+                self.stmts(body, &mut inner, inner_ctx);
+                self.scopes.pop();
+                self.warn(
+                    line,
+                    "placeholder",
+                    format!("`{}` is defined in a file imported inside a rule; its `@extend`s were inlined", selectors[0]),
+                );
+                self.inlined_placeholders
+                    .insert(selectors[0].clone(), inner);
+            }
+            StmtKind::Rule { selectors, body }
                 if !ctx.top_level && selectors.len() == 1 && is_placeholder(&selectors[0]) =>
             {
                 let mut inner = Vec::new();
@@ -390,7 +434,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             StmtKind::Rule { selectors, body } => {
                 let selectors: Vec<String> = selectors
                     .iter()
-                    .map(|s| self.interpolate(s, line))
+                    .map(|s| self.interpolate(&unescape_selector(s), line))
                     .flat_map(|s| {
                         expr::split_top_level(&s)
                             .into_iter()
@@ -611,7 +655,10 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             return;
         }
         self.required.insert(resolved.clone());
+        let nested = ctx.in_rule;
+        self.imported_in_rule += usize::from(nested);
         self.file(&resolved);
+        self.imported_in_rule -= usize::from(nested);
     }
 
     /// `/path` from the root, without `.styl` / `/index.styl` if `strip`.
@@ -701,7 +748,16 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             .map(|t| self.interpolate(t.trim(), stmt.line))
             .collect();
         if targets.iter().all(|t| t.starts_with('$')) {
-            out.push(Out::Extend(targets.join(", ")));
+            let mut extended = Vec::new();
+            for target in targets {
+                match self.inlined_placeholders.get(&target) {
+                    Some(body) => out.extend(body.iter().cloned()),
+                    None => extended.push(target),
+                }
+            }
+            if !extended.is_empty() {
+                out.push(Out::Extend(extended.join(", ")));
+            }
         } else {
             self.warn(
                 stmt.line,
@@ -848,6 +904,25 @@ impl<'a, F: FileSystem> Interp<'a, F> {
         }
         let serializable = is_serializable(&v) && !SETTINGS.contains(&name);
         let eligible = !self.preloading && self.eligible.is_none_or(|e| e.contains(name));
+        if self.options.custom_media && !self.preloading {
+            let features: Vec<String> = self
+                .media_pairs
+                .iter()
+                .filter(|(var, _)| var == name)
+                .map(|(_, feature)| feature.clone())
+                .collect();
+            for feature in features {
+                out.push(Out::AtRule {
+                    name: "custom-media".into(),
+                    prelude: format!(
+                        "{} ({feature}: {})",
+                        self.media_name(name, &feature),
+                        v.css(false)
+                    ),
+                    body: None,
+                });
+            }
+        }
         if self.options.vars == VarMode::Props && serializable && eligible {
             let prop = self.prop_name(name);
             out.push(Out::RootVar {
@@ -986,8 +1061,64 @@ impl<'a, F: FileSystem> Interp<'a, F> {
     }
 
     /// Replaces variables and `{interpolation}` in at-rule preludes with literal values.
+    fn media_name(&self, var: &str, feature: &str) -> String {
+        format!(
+            "--{}{}-{feature}",
+            self.options.var_prefix,
+            var.trim_start_matches('$')
+        )
+    }
+
+    /// `(feature: var)` groups with a global `var`: records them, and with
+    /// `--custom-media` replaces them by `(--var-feature)`.
+    fn custom_media_groups(&mut self, prelude: &str) -> String {
+        let mut out = String::new();
+        let mut rest = prelude;
+        while let Some(open) = rest.find('(') {
+            out += &rest[..open];
+            let after = &rest[open + 1..];
+            let Some(close) = after
+                .find([')', '('])
+                .filter(|&i| after[i..].starts_with(')'))
+            else {
+                out.push('(');
+                rest = after;
+                continue;
+            };
+            let group = &after[..close];
+            let replacement = group.split_once(':').and_then(|(feature, value)| {
+                let (feature, var) = (feature.trim(), value.trim());
+                let is_word = !var.is_empty()
+                    && var
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '$'));
+                let global = is_word
+                    && self.globals.contains_key(var)
+                    && !self.scopes.iter().any(|s| s.vars.contains_key(var));
+                if !global {
+                    return None;
+                }
+                let pair = (var.to_string(), feature.to_string());
+                self.usage.media_features.insert(pair.clone());
+                (self.options.custom_media && self.media_pairs.contains(&pair))
+                    .then(|| format!("({})", self.media_name(var, feature)))
+            });
+            match replacement {
+                Some(r) => out += &r,
+                None => {
+                    out.push('(');
+                    out += group;
+                    out.push(')');
+                }
+            }
+            rest = &after[close + 1..];
+        }
+        out + rest
+    }
+
     fn substitute_prelude(&mut self, prelude: &str, line: u32) -> String {
         let interpolated = self.interpolate(prelude, line);
+        let interpolated = self.custom_media_groups(&interpolated);
         let mut out = String::new();
         let mut word = String::new();
         let flush = |this: &mut Self, word: &mut String, out: &mut String| {
@@ -1187,7 +1318,25 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                 quote: Some(*q),
             },
             Expr::Ident(name) => match self.lookup(name) {
-                Some(v) => v,
+                Some(v) => {
+                    // A call to a function that has been defined since.
+                    let pending = match v.literal() {
+                        Value::Raw(text) => self.unresolved.get(text).cloned(),
+                        _ => None,
+                    };
+                    match pending.and_then(|(f, args)| self.find_def(&f).map(|def| (def, args))) {
+                        Some((def, args)) => {
+                            let mut sink = Vec::new();
+                            let ctx = Ctx {
+                                top_level: false,
+                                in_rule: false,
+                                in_mixin: true,
+                            };
+                            self.invoke(&def, args, &mut sink, ctx, false)
+                        }
+                        None => v,
+                    }
+                }
                 None if name == "true" => Value::Bool(true),
                 None if name == "false" => Value::Bool(false),
                 None if name == "null" => Value::Null,
@@ -1247,7 +1396,32 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                 let l = self.eval(lhs, line, false);
                 let r = self.eval(rhs, line, false);
                 match builtins::binary(op, &l, &r) {
-                    Some(v) => v,
+                    Some(v) => {
+                        if let (Value::Number(a), Value::Number(b)) = (l.literal(), r.literal())
+                            && matches!(*op, "+" | "-")
+                            && !a.unit.is_empty()
+                            && !b.unit.is_empty()
+                            && a.unit != b.unit
+                        {
+                            let message = if v.is_tracked() {
+                                format!(
+                                    "mixed units `{} {op} {}`: Stylus computed `{}` (ignoring units), stylet keeps a correct `calc()`",
+                                    a.css(),
+                                    b.css(),
+                                    v.css(false)
+                                )
+                            } else {
+                                format!(
+                                    "mixed units `{} {op} {}`: Stylus (and this migration) computed `{}`, ignoring units",
+                                    a.css(),
+                                    b.css(),
+                                    v.css(false)
+                                )
+                            };
+                            self.warn(line, "units", message);
+                        }
+                        v
+                    }
                     None => {
                         if !matches!(op, &"==" | &"!=" | &"<" | &">" | &"<=" | &">=" | &"in") {
                             self.warn(
@@ -1280,6 +1454,10 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                 let i = self.eval(index, line, false);
                 builtins::index(&v, &i)
             }
+            Expr::Unit { expr, unit } => match self.eval(expr, line, false) {
+                Value::Number(n) => Value::Number(Number::new(n.n, unit.clone())),
+                other => other,
+            },
             Expr::Member { expr, key } => {
                 let v = self.eval(expr, line, false);
                 builtins::index(&v, &Value::Ident(key.clone()))
@@ -1310,8 +1488,14 @@ impl<'a, F: FileSystem> Interp<'a, F> {
         if name == "embedurl" {
             let spec = args.first().map(|(_, v)| v.text(false)).unwrap_or_default();
             let Some(found) = self.lookup_file(&spec) else {
-                self.warn(line, "asset", format!("`embedurl()`: can't find `{spec}`"));
-                return Value::Raw(format!("url('{spec}?inline')"));
+                self.warn(
+                    line,
+                    "asset",
+                    format!(
+                        "`embedurl()`: can't find `{spec}`; like Stylus, kept as a plain `url()`"
+                    ),
+                );
+                return Value::Raw(format!("url('{spec}')"));
             };
             let from = self
                 .output_file
@@ -1329,6 +1513,8 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                 v
             }
             builtins::Result::Unknown(v) => {
+                self.unresolved
+                    .insert(v.css(false), (name.to_string(), args.clone()));
                 self.unknown_functions
                     .push((self.warnings.len(), name.to_string()));
                 self.warn(
@@ -1471,4 +1657,27 @@ fn has_relative_url(css: &str) -> bool {
         rest = &rest[i + 4..];
     }
     false
+}
+
+/// Stylus drops the backslash of `\x` escapes in selector source (outside
+/// `{interpolation}`).
+fn unescape_selector(selector: &str) -> String {
+    let mut out = String::new();
+    let mut depth = 0;
+    let mut chars = selector.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '{' => depth += 1,
+            '}' => depth -= 1,
+            '\\' if depth == 0 => {
+                if let Some(next) = chars.next() {
+                    out.push(next);
+                }
+                continue;
+            }
+            _ => {}
+        }
+        out.push(c);
+    }
+    out
 }

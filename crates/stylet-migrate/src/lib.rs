@@ -36,6 +36,9 @@ pub struct Options {
     pub unroll_loops: bool,
     /// Values for identifiers Stylus got from JS (e.g. `isDevelopment=false`).
     pub defines: Vec<(String, String)>,
+    /// Turn variables used in media conditions (`(max-width: breakpointPhone)`)
+    /// into `@custom-media` definitions instead of inlining them.
+    pub custom_media: bool,
     /// Stylus files evaluated before each entry for their definitions only,
     /// e.g. a mixin library like `node_modules/axis/axis/index.styl`.
     pub preload: Vec<PathBuf>,
@@ -94,6 +97,7 @@ pub fn migrate<F: FileSystem>(
 
     // Pass 2: the real conversion.
     let mut second = eval::Interp::new(fs, root, options, Some(&eligible));
+    second.media_pairs = first.usage.media_features.clone();
     for entry in entries {
         second.entry(entry);
     }

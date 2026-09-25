@@ -5,6 +5,5 @@
 Error 45..55 "@extend $x": `@extend` can't be used inside `@media`
 Error 62..78 "@extend $missing": unknown placeholder `$missing`
 Error 82..92 "@extend $x": `@extend` must be inside a rule
-Error 94..112 "$x { color: blue }": placeholder `$x` is already defined
 Error 131..148 "@extend $missing2": unknown placeholder `$missing2`
 Error 171..188 "$z { color: red }": placeholders must be defined at the top level of a file (or of a `@layer`)

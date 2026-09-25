@@ -51,7 +51,7 @@ client/placeholders.styl
 {"version":3,"file":"index.css","sources":[],"sourcesContent":[],"names":[],"mappings":""}
 === env/a/twice.styl
 @layer a {
-  .x .y, .between, .after {
+  .between, .after {
     x: 1;
   }
 }
@@ -66,4 +66,4 @@ client/placeholders.styl
 env/a/twice.styl
 client/twice.styl
 --- source map
-{"version":3,"file":"index.css","sources":["../env/a/twice.styl","../client/twice.styl"],"sourcesContent":["@import '/client/twice' layer(a)\n@layer a {\n  .x {\n    .y { @extend $twice }\n  }\n}\n.between { @extend $twice }\n@import '/client/twice' layer(b)\n.after { @extend $twice }\n","$twice {\n  x: 1\n}\n"],"names":[],"mappings":"AAAA;ECAA;IACE;;;;ADMF;ECPA;IACE"}
+{"version":3,"file":"index.css","sources":["../env/a/twice.styl","../client/twice.styl"],"sourcesContent":["@import '/client/twice' layer(a)\n.between { @extend $via }\n@import '/client/twice' layer(b)\n.after { @extend $via }\n","$twice {\n  x: 1\n}\n$via {\n  @extend $twice\n}\n"],"names":[],"mappings":"AAAA;ECAA;IACE;;;;ADCF;ECFA;IACE"}

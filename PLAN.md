@@ -82,11 +82,14 @@ Variables, mixins, `if`/`for`, `{}` interpolation, math, built-in functions, **c
   or the next line is more indented and starts with a string (`grid-template-areas: "a b"` ⏎ `  "c d"`).
 
 ### Placeholder / @extend semantics
-- `$name { … }` defines a placeholder; allowed at top level only. Unused placeholders emit nothing.
+- `$name { … }` defines a placeholder; allowed at the top level (or inside `@layer`s). Unused placeholders emit nothing.
 - `@extend $name` (any depth, any file after import) adds the extender's **resolved** selector to the
   placeholder's selector list. Nested extenders resolve through their parents, using `:is()` for parent lists:
   `.a, .b { .c { @extend $x } }` → `:is(.a, .b) .c`.
-- The placeholder rule is emitted where it was defined (first import position), preserving cascade order.
+- The placeholder rule is emitted where it was defined, preserving cascade order. A placeholder may be
+  defined (or imported) more than once; like in Stylus, an `@extend` reaches the copies emitted before it,
+  or the first copy if none precedes it.
+- `@extend` inside nested rules of a placeholder extends with the placeholder's selectors nested accordingly.
 - `@extend` of an unknown placeholder is an error; `@extend` of a non-placeholder selector is an error.
 
 ## Bundler

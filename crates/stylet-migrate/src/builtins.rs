@@ -243,12 +243,17 @@ pub fn binary(op: &str, l: &Value, r: &Value) -> Option<Value> {
             if op == "%" || op == "**" {
                 return Some(literal);
             }
+            // `calc(12mm + 2)` is invalid CSS: a unitless addend takes the other unit.
+            let side = |v: &Value, n: &Number, other: &Number| {
+                let plain = matches!(op, "+" | "-") && n.unit.is_empty() && !other.unit.is_empty();
+                if plain && !v.is_tracked() {
+                    format!("{}{}", Number::new(n.n, "").css(), other.unit)
+                } else {
+                    strip_calc(&v.css(true))
+                }
+            };
             tracked(
-                format!(
-                    "calc({} {op} {})",
-                    strip_calc(&l.css(true)),
-                    strip_calc(&r.css(true))
-                ),
+                format!("calc({} {op} {})", side(l, a, b), side(r, b, a)),
                 literal,
                 &[l, r],
             )
@@ -436,6 +441,23 @@ pub fn call(name: &str, args: &[(Option<String>, Value)]) -> Result {
                 );
             }
             result
+        }
+        // `rgba(color alpha)`: one space-separated argument.
+        "rgba" | "rgb"
+            if values.len() == 1
+                && matches!(a0.literal(), Value::List { items, comma: false }
+                    if items.len() == 2 && matches!(items[0].literal(), Value::Color(_))) =>
+        {
+            let items = a0.items();
+            let args = [(None, items[0].clone()), (None, items[1].clone())];
+            return call(name, &args);
+        }
+        "rgba"
+            if values.len() == 2
+                && matches!(a0.literal(), Value::List { items, comma: false } if items.len() == 3) =>
+        {
+            let channels: Vec<String> = a0.items().iter().map(|v| v.css(false)).collect();
+            Value::Raw(format!("rgba({}, {})", channels.join(", "), a1.css(false)))
         }
         "alpha" => match arg(0).literal() {
             Value::Color(c) => Value::Number(Number::new(c.a, "")),

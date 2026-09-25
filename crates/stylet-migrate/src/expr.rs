@@ -44,6 +44,11 @@ pub enum Expr {
         expr: Box<Expr>,
         key: String,
     },
+    /// `(expr)em`: Stylus sets the unit of a parenthesized number.
+    Unit {
+        expr: Box<Expr>,
+        unit: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -248,6 +253,15 @@ fn matching_close(chars: &[char], open: usize) -> Option<usize> {
         }
     }
     None
+}
+
+fn is_unit(name: &str) -> bool {
+    const UNITS: &[&str] = &[
+        "px", "em", "rem", "ex", "ch", "vw", "vh", "vmin", "vmax", "mm", "cm", "in", "pt", "pc",
+        "q", "deg", "rad", "grad", "turn", "s", "ms", "fr", "dpi", "dppx", "svh", "lvh", "dvh",
+        "cqw", "cqh",
+    ];
+    UNITS.contains(&name)
 }
 
 fn is_ident_start(c: char) -> bool {
@@ -533,6 +547,20 @@ impl Parser {
 
     fn postfix(&mut self) -> Result<Expr, String> {
         let mut expr = self.primary()?;
+        if let Expr::Paren(_) = expr
+            && let Some(Token {
+                tok: Tok::Ident(unit),
+                space_before: false,
+            }) = self.peek()
+            && is_unit(unit)
+        {
+            let unit = unit.clone();
+            self.pos += 1;
+            expr = Expr::Unit {
+                expr: Box::new(expr),
+                unit,
+            };
+        }
         loop {
             match self.peek() {
                 Some(Token {

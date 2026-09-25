@@ -116,8 +116,6 @@ struct PlaceholderDef {
     name: String,
     /// Position in emission order (see `Emitter::clock`).
     at: u64,
-    /// Where it is defined; the same definition may be emitted more than once.
-    origin: (FileId, TextRange),
     /// Output range of the whole rule, including the separator before it.
     item: Range<usize>,
     /// Output range of the head, replaced by the extenders' selectors.
@@ -152,6 +150,8 @@ pub struct Emitter<'a, F> {
     placeholders: Vec<PlaceholderDef>,
     /// Names of all defined placeholders, including empty ones.
     placeholder_names: HashSet<String>,
+    /// Every emitted copy (name, clock), including empty ones.
+    placeholder_copies: Vec<(String, u64)>,
     extends: Vec<ExtendUse>,
     pub out: String,
     pub mappings: Vec<Mapping>,
@@ -176,6 +176,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             clock: 0,
             placeholders: Vec::new(),
             placeholder_names: HashSet::new(),
+            placeholder_copies: Vec::new(),
             extends: Vec::new(),
             out: String::new(),
             mappings: Vec::new(),
@@ -398,17 +399,12 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
                 "placeholders must be defined at the top level of a file (or of a `@layer`)",
             );
         }
-        let origin = (self.file(), range);
-        if self
-            .placeholders
-            .iter()
-            .any(|p| p.name == name && p.origin != origin)
-        {
-            return self.error(range, format!("placeholder `{name}` is already defined"));
-        }
+        // A placeholder may be defined more than once (like in Stylus): each
+        // definition receives the extenders that follow it.
         self.placeholder_names.insert(name.clone());
         let item_start = self.item_start;
         let at = self.clock;
+        self.placeholder_copies.push((name.clone(), at));
         let kind = ScopeKind::Placeholder(name.clone());
         let head = self.block(kind, name.clone(), range.start(), depth, true, |this| {
             this.items(block.syntax(), Ctx::Style, depth + 1)
@@ -417,7 +413,6 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
             self.placeholders.push(PlaceholderDef {
                 name,
                 at,
-                origin,
                 item: item_start..self.out.len(),
                 head,
             });
@@ -520,10 +515,10 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         visiting.push(name.to_string());
         let mut out: Vec<String> = Vec::new();
         let copies: Vec<u64> = self
-            .placeholders
+            .placeholder_copies
             .iter()
-            .filter(|p| p.name == name)
-            .map(|p| p.at)
+            .filter(|(n, _)| n == name)
+            .map(|(_, at)| *at)
             .collect();
         let reaches = |use_: &ExtendUse| match copy_at {
             None => true,
@@ -541,7 +536,14 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
                 Extender::Selector(selector) => vec![selector.clone()],
                 Extender::Placeholder { name: p, nested } if !visiting.contains(p) => {
                     let separator = if self.options.minify { "," } else { ", " };
-                    self.selectors_of(p, None, visiting)
+                    // The copy of `p` whose body contains this `@extend`.
+                    let copy = self
+                        .placeholder_copies
+                        .iter()
+                        .filter(|(n, at)| n == p && *at <= use_.at)
+                        .map(|(_, at)| *at)
+                        .max();
+                    self.selectors_of(p, copy, visiting)
                         .into_iter()
                         .map(|base| {
                             nested.iter().fold(base, |parent, child| {
