@@ -34,7 +34,9 @@
     <section class="example" aria-label="Example">
       <figure>
         <figcaption>app.styl <span class="hint">— edit me</span></figcaption>
-        <pre id="example-source"><code data-language="stylet">$button {
+        <pre id="example-source"><code data-language="stylet">@custom-media --phone (width &lt; 600px)
+
+$button {
   border-radius: 4px
   padding: .5rem 1rem
 }
@@ -46,7 +48,7 @@
   grid-template-columns: 12rem 1fr
   grid-template-rows: auto 1fr
 
-  @media (width &lt; 600px) {
+  @media (--phone) {
     grid-template-areas: 'header'
                          'main'
     grid-template-columns: 1fr

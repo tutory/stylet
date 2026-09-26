@@ -18,17 +18,33 @@ async function loadHighlighter() {
   }
 }
 
-const EXAMPLE = `// Placeholders are extended, nesting stays native CSS nesting.
-@custom-media --phone (width <= 600px)
+const EXAMPLE = `// Named media queries, resolved at build time.
+@custom-media --phone (width < 600px)
+@custom-media --wide (width >= 1200px)
 
+// Placeholders are emitted once, with all extenders.
 $button {
   border-radius: 4px
   padding: .5rem 1rem
 }
 
-.toolbar {
-  display: flex
-  gap: .5rem
+// Nesting stays native CSS (or try "flatten nesting").
+.app {
+  display: grid
+  grid-template-areas: 'header header'
+                       'nav    main'
+  grid-template-columns: 12rem 1fr
+  grid-template-rows: auto 1fr
+
+  @media (--phone) {
+    grid-template-areas: 'header'
+                         'main'
+    grid-template-columns: 1fr
+  }
+
+  @media (--wide) {
+    grid-template-columns: 16rem 1fr
+  }
 
   .save {
     @extend $button
@@ -38,10 +54,6 @@ $button {
     &:hover {
       filter: brightness(1.1)
     }
-  }
-
-  @media (--phone) {
-    flex-direction: column
   }
 }
 `
