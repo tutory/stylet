@@ -110,7 +110,8 @@ Variables, mixins, `if`/`for`, `{}` interpolation, math, built-in functions, **c
 - **Highlighting**: VS Code extension (TextMate grammar + LSP client), tree-sitter grammar; on the web a
   highlight.js language definition (`playground/stylet-hljs.js`), used by the playground.
   Note: `.styl` collides with existing Stylus extensions/grammars.
-- **LSP**: diagnostics, go-to-import, placeholder definition/references, format on save.
+- **LSP**: diagnostics, go-to-import, placeholder definition/references, format on save,
+  completions (properties and keywords from webref, project custom properties, placeholders, custom media).
 - **Docs + playground**: static docs site; playground compiles/formats a single string in the browser via WASM
   (no files, no `@import`).
 
@@ -178,7 +179,7 @@ Corpus: `../webapp`, 550 `.styl` files (excluding `.claude/worktrees`), 8 env en
 | `stylet-fmt` | Formatter + optional property sort. |
 | `stylet-migrate` | Stylus-subset → stylet converter. |
 | `stylet-cli` | `build`, `watch`, `fmt`, `check`, `migrate`. Config: `stylet.toml` (entries, out dir, root, aliases, `resolve_custom_media`, fmt options). |
-| `stylet-lsp` | Language server (`tower-lsp`). |
+| `stylet-lsp` | Language server (`lsp-server`, synchronous). |
 | `stylet-wasm` | `compile(src)`, `format(src)` for the playground. |
 | `editors/vscode`, `tree-sitter-stylet`, `docs/` | Editor integration, grammar, docs + playground. |
 

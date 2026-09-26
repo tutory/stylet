@@ -57,6 +57,28 @@ nested rule and a declaration of its parent apply to the same element — e.g. w
 
 See [Migrating from Stylus](migrate.md).
 
+## `stylet lsp`
+
+A language server on stdin/stdout, started in the project directory (it reads
+`stylet.toml` from there). It compiles the configured entries as you type, with
+unsaved editor contents taking precedence, and offers:
+
+- diagnostics for every file the entries reach (open files outside them get syntax errors)
+- formatting with the `[fmt]` settings
+- go to definition for `@import` paths and `$placeholders`, placeholder references
+- document symbols (rules, placeholders, at-rules)
+- completions: CSS properties and their keywords (from [webref](https://github.com/w3c/webref)),
+  custom properties declared in the project (`var(--…)`), placeholders after `@extend`
+  and `@custom-media` names in media queries
+
+The [VS Code extension](../editors/vscode) starts it for you. Other editors run
+`stylet lsp` for `.styl` files, e.g. in Neovim:
+
+```lua
+vim.lsp.config('stylet', { cmd = { 'stylet', 'lsp' }, filetypes = { 'stylet' }, root_markers = { 'stylet.toml' } })
+vim.lsp.enable('stylet')
+```
+
 ## `stylet.toml`
 
 stylet looks for `stylet.toml` in the current directory and its parents

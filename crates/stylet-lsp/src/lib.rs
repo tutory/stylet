@@ -4,8 +4,11 @@
 //! contents taking precedence over the files on disk), so imports and
 //! placeholders are checked in their real context; open files no entry
 //! reaches only get syntax errors. Also: formatting, go to definition for
-//! imports and placeholders, placeholder references and document symbols.
+//! imports and placeholders, placeholder references, document symbols and
+//! completions (CSS properties and their keywords, the project's custom
+//! properties, placeholders after `@extend`, custom media).
 
+mod complete;
 mod convert;
 
 use convert::{offset, path_to_uri, range, uri_to_path};
@@ -15,19 +18,22 @@ use lsp_types::notification::{
     Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
-    DocumentSymbolRequest, Formatting, GotoDefinition, References, Request as _,
+    Completion, DocumentSymbolRequest, Formatting, GotoDefinition, References, Request as _,
 };
 use lsp_types::{
-    DiagnosticSeverity, DocumentSymbol, DocumentSymbolResponse, GotoDefinitionResponse,
-    InitializeParams, Location, OneOf, PublishDiagnosticsParams, ServerCapabilities, SymbolKind,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Uri,
+    CompletionItem, CompletionItemKind, CompletionOptions, CompletionTextEdit, DiagnosticSeverity,
+    DocumentSymbol, DocumentSymbolResponse, GotoDefinitionResponse, InitializeParams, Location,
+    OneOf, PublishDiagnosticsParams, ServerCapabilities, SymbolKind, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Uri,
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use stylet_resolve::{FileSystem, LineIndex, Loader, OsFs, ResolveConfig, normalize};
 use stylet_syntax::SyntaxKind::*;
-use stylet_syntax::ast::{Import, Item};
+use stylet_syntax::ast::{AtRule, Declaration, Import, Item, Placeholder};
 use stylet_syntax::{SyntaxNode, SyntaxToken, TextRange};
 
 /// Project settings, usually from `stylet.toml`.
@@ -49,11 +55,21 @@ pub fn run(settings: Settings) -> Result<(), Box<dyn std::error::Error + Send + 
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
+        completion_provider: Some(CompletionOptions {
+            trigger_characters: Some(["-", "$", "(", ":", " "].map(String::from).to_vec()),
+            ..CompletionOptions::default()
+        }),
         ..ServerCapabilities::default()
     };
     let params = connection.initialize(serde_json::to_value(capabilities)?)?;
-    let _params: InitializeParams = serde_json::from_value(params)?;
+    let params: InitializeParams = serde_json::from_value(params)?;
     let mut server = Server::new(settings);
+    // `editor.action.triggerSuggest` is a VS Code command.
+    server.suggest_values = params.client_info.is_some_and(|c| {
+        ["Code", "VSCodium", "Cursor", "Windsurf"]
+            .iter()
+            .any(|n| c.name.contains(n))
+    });
     server.main_loop(&connection)?;
     // The writer thread ends once the connection's sender is gone.
     drop(connection);
@@ -87,6 +103,69 @@ pub struct Server {
     published: HashSet<PathBuf>,
     /// Every stylet file reached by the last compile.
     known: HashSet<PathBuf>,
+    /// Definitions per file, by text hash.
+    definitions: HashMap<PathBuf, (u64, Rc<Definitions>)>,
+    /// Whether picking a property opens the value completions (VS Code).
+    pub suggest_values: bool,
+}
+
+/// What a file defines, for completions.
+#[derive(Default)]
+struct Definitions {
+    /// Custom properties with their first value.
+    custom_properties: Vec<(String, String)>,
+    placeholders: Vec<String>,
+    /// `@custom-media` names with their queries.
+    custom_media: Vec<(String, String)>,
+}
+
+impl Definitions {
+    fn of(root: &SyntaxNode) -> Self {
+        let mut out = Self::default();
+        for node in root.descendants() {
+            match node.kind() {
+                DECLARATION => {
+                    let d = Declaration::cast(node).expect("declaration");
+                    if let (true, Some(name)) = (d.is_custom(), d.property()) {
+                        let value = d.value().map(|v| v.syntax().text().to_string());
+                        let value = value
+                            .unwrap_or_default()
+                            .split_whitespace()
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        out.custom_properties.push((name.text().to_string(), value));
+                    }
+                }
+                PLACEHOLDER => {
+                    if let Some(name) = Placeholder::cast(node).and_then(|p| p.name()) {
+                        out.placeholders.push(name.text().to_string());
+                    }
+                }
+                AT_RULE => {
+                    let rule = AtRule::cast(node).expect("at-rule");
+                    let prelude = rule.prelude().map(|p| p.syntax().text().to_string());
+                    let prelude = prelude.unwrap_or_default();
+                    let prelude = prelude.trim();
+                    match rule.name().as_str() {
+                        "custom-media" => {
+                            if let Some((name, query)) = prelude.split_once(char::is_whitespace) {
+                                out.custom_media
+                                    .push((name.to_string(), query.trim().to_string()));
+                            }
+                        }
+                        // `@property --x { … }` registers a custom property.
+                        "property" if prelude.starts_with("--") => {
+                            out.custom_properties
+                                .push((prelude.to_string(), String::new()));
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
 }
 
 impl Server {
@@ -96,6 +175,8 @@ impl Server {
             fs: Overlay::default(),
             published: HashSet::new(),
             known: HashSet::new(),
+            definitions: HashMap::new(),
+            suggest_values: false,
         }
     }
 
@@ -103,23 +184,32 @@ impl Server {
         &mut self,
         connection: &Connection,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Documents changed since the last compile; it waits for a quiet moment,
+        // or for a request that needs to know the project's files.
+        let mut dirty = false;
         for message in &connection.receiver {
             match message {
                 Message::Request(request) => {
                     if connection.handle_shutdown(&request)? {
                         return Ok(());
                     }
-                    let response = self.request(request);
-                    connection.sender.send(Message::Response(response))?;
-                }
-                Message::Notification(notification) => {
-                    if self.notification(notification) && connection.receiver.is_empty() {
+                    if dirty && self.known.is_empty() {
                         for note in self.diagnostics() {
                             connection.sender.send(Message::Notification(note))?;
                         }
+                        dirty = false;
                     }
+                    let response = self.request(request);
+                    connection.sender.send(Message::Response(response))?;
                 }
+                Message::Notification(notification) => dirty |= self.notification(notification),
                 Message::Response(_) => {}
+            }
+            if dirty && connection.receiver.is_empty() {
+                for note in self.diagnostics() {
+                    connection.sender.send(Message::Notification(note))?;
+                }
+                dirty = false;
             }
         }
         Ok(())
@@ -275,6 +365,11 @@ impl Server {
                     serde_json::to_value(self.symbols(&p.text_document.uri)).unwrap_or_default()
                 })
             }
+            Completion::METHOD => cast::<Completion>(request).map(|(_, p)| {
+                let at = p.text_document_position;
+                serde_json::to_value(self.completion(&at.text_document.uri, at.position))
+                    .unwrap_or_default()
+            }),
             _ => return method_not_found(id),
         };
         match result {
@@ -352,16 +447,8 @@ impl Server {
 
     /// Definitions and/or `@extend`s of placeholder `name` in all known and open files.
     fn placeholder_locations(&self, name: &str, definitions: bool, extends: bool) -> Vec<Location> {
-        let mut files: Vec<PathBuf> = self
-            .known
-            .iter()
-            .chain(self.fs.docs.keys())
-            .cloned()
-            .collect();
-        files.sort();
-        files.dedup();
         let mut out = Vec::new();
-        for path in files {
+        for path in self.project_files() {
             let Some(text) = self.text(&path) else {
                 continue;
             };
@@ -387,6 +474,170 @@ impl Server {
             }
         }
         out
+    }
+
+    /// Known and open files, sorted.
+    fn project_files(&self) -> Vec<PathBuf> {
+        let mut files: Vec<PathBuf> = self
+            .known
+            .iter()
+            .chain(self.fs.docs.keys())
+            .cloned()
+            .collect();
+        files.sort();
+        files.dedup();
+        files
+    }
+
+    fn definitions(&mut self, path: &Path) -> Option<Rc<Definitions>> {
+        let text = self.text(path)?;
+        let mut hasher = std::hash::DefaultHasher::new();
+        text.hash(&mut hasher);
+        let hash = hasher.finish();
+        if let Some((h, defs)) = self.definitions.get(path)
+            && *h == hash
+        {
+            return Some(defs.clone());
+        }
+        let defs = Rc::new(Definitions::of(&stylet_syntax::parse(&text).syntax()));
+        self.definitions
+            .insert(path.to_path_buf(), (hash, defs.clone()));
+        Some(defs)
+    }
+
+    fn completion(
+        &mut self,
+        uri: &Uri,
+        position: lsp_types::Position,
+    ) -> Option<Vec<CompletionItem>> {
+        let path = uri_to_path(uri)?;
+        let text = self.text(&path)?;
+        let at = offset(&text, position)? as usize;
+        let root = stylet_syntax::parse(&text).syntax();
+        let in_block = root
+            .token_at_offset((at as u32).into())
+            .left_biased()
+            .is_some_and(|t| t.parent_ancestors().any(|n| n.kind() == BLOCK));
+        let (context, start) = complete::context(&text, at, in_block);
+        let index = LineIndex::new(&text);
+        let replace = range(
+            &index,
+            TextRange::new((start as u32).into(), (at as u32).into()),
+        );
+        let typed = &text[start..at];
+
+        let mut defs = Vec::new();
+        for file in self.project_files() {
+            defs.extend(self.definitions(&file));
+        }
+        let mut seen = HashSet::new();
+        let mut custom_properties = Vec::new();
+        for (name, value) in defs.iter().flat_map(|d| &d.custom_properties) {
+            if seen.insert(name.as_str()) {
+                custom_properties.push((name.as_str(), value.as_str()));
+            }
+        }
+
+        let item = |label: String, kind: CompletionItemKind, new_text: String| CompletionItem {
+            text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                range: replace,
+                new_text,
+            })),
+            label,
+            kind: Some(kind),
+            ..CompletionItem::default()
+        };
+        let mut items = Vec::new();
+        match context {
+            complete::Context::Property => {
+                let suggest = lsp_types::Command::new(
+                    "Suggest".into(),
+                    "editor.action.triggerSuggest".into(),
+                    None,
+                );
+                for p in complete::properties() {
+                    items.push(CompletionItem {
+                        detail: Some(p.syntax.to_string()),
+                        documentation: (!p.href.is_empty()).then(|| {
+                            lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent {
+                                kind: lsp_types::MarkupKind::Markdown,
+                                value: format!("[Specification]({})", p.href),
+                            })
+                        }),
+                        // Vendor-prefixed properties after the standard ones.
+                        sort_text: Some(format!("{}{}", u8::from(p.name.starts_with('-')), p.name)),
+                        command: self.suggest_values.then(|| suggest.clone()),
+                        ..item(
+                            p.name.into(),
+                            CompletionItemKind::PROPERTY,
+                            format!("{}: ", p.name),
+                        )
+                    });
+                }
+                for (name, value) in &custom_properties {
+                    items.push(CompletionItem {
+                        detail: (!value.is_empty()).then(|| value.to_string()),
+                        ..item(
+                            name.to_string(),
+                            CompletionItemKind::VARIABLE,
+                            format!("{name}: "),
+                        )
+                    });
+                }
+            }
+            complete::Context::Value { property, in_var } => {
+                if !in_var {
+                    let keywords = complete::property(&property)
+                        .map(|p| p.keywords.as_slice())
+                        .unwrap_or_default();
+                    let mut seen = HashSet::new();
+                    for keyword in keywords.iter().chain(complete::GLOBAL_KEYWORDS) {
+                        if seen.insert(*keyword) {
+                            items.push(item(
+                                keyword.to_string(),
+                                CompletionItemKind::VALUE,
+                                keyword.to_string(),
+                            ));
+                        }
+                    }
+                }
+                for (name, value) in &custom_properties {
+                    let label = if in_var {
+                        name.to_string()
+                    } else {
+                        format!("var({name})")
+                    };
+                    items.push(CompletionItem {
+                        detail: (!value.is_empty()).then(|| value.to_string()),
+                        // Typing `--x` finds `var(--x)`.
+                        filter_text: typed.starts_with('-').then(|| name.to_string()),
+                        sort_text: Some(format!("0{name}")),
+                        ..item(label.clone(), CompletionItemKind::VARIABLE, label)
+                    });
+                }
+            }
+            complete::Context::Extend => {
+                let mut seen = HashSet::new();
+                for name in defs.iter().flat_map(|d| &d.placeholders) {
+                    if seen.insert(name) {
+                        items.push(item(name.clone(), CompletionItemKind::CLASS, name.clone()));
+                    }
+                }
+            }
+            complete::Context::CustomMedia => {
+                let mut seen = HashSet::new();
+                for (name, query) in defs.iter().flat_map(|d| &d.custom_media) {
+                    if seen.insert(name) {
+                        items.push(CompletionItem {
+                            detail: Some(query.clone()),
+                            ..item(name.clone(), CompletionItemKind::CONSTANT, name.clone())
+                        });
+                    }
+                }
+            }
+            complete::Context::None => return None,
+        }
+        Some(items)
     }
 
     fn symbols(&self, uri: &Uri) -> Option<DocumentSymbolResponse> {

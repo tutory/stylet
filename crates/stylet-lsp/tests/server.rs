@@ -180,3 +180,72 @@ fn project() {
     );
     assert_eq!(symbols[0]["name"], "$btn");
 }
+
+/// Labels of the completions at `|`, after a compile has found the project's files.
+fn complete(server: &mut Server, path: &Path, text: &str) -> Vec<String> {
+    let at = text.find('|').unwrap();
+    let text = text.replace('|', "");
+    open(server, path, &text);
+    server.diagnostics();
+    let line = text[..at].matches('\n').count();
+    let character = at - text[..at].rfind('\n').map_or(0, |i| i + 1);
+    let params = json!({
+        "textDocument": { "uri": uri(path) },
+        "position": { "line": line, "character": character },
+    });
+    let result = request(server, "textDocument/completion", params);
+    result
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .map(|i| i["label"].as_str().unwrap().to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn completions() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    fs::write(root.join("index.styl"), "@import 'theme'\n@import 'app'\n").unwrap();
+    fs::write(
+        root.join("theme.styl"),
+        ":root {\n  --primary: #06c\n  --gap: 1rem\n}\n\n@custom-media --phone (width <= 600px)\n\n$panel {\n  padding: var(--gap)\n}\n",
+    )
+    .unwrap();
+    let app = root.join("app.styl");
+    fs::write(&app, "").unwrap();
+    let mut server = Server::new(Settings {
+        resolve: ResolveConfig {
+            root: root.clone(),
+            aliases: Vec::new(),
+        },
+        entries: vec![root.join("index.styl")],
+        ..Settings::default()
+    });
+
+    let properties = complete(&mut server, &app, ".a {\n  disp|\n}\n");
+    assert!(properties.contains(&"display".to_string()));
+    assert!(properties.contains(&"--primary".to_string()));
+    let unclosed = complete(&mut server, &app, ".a {\n  .b {\n    disp|");
+    assert!(unclosed.contains(&"display".to_string()));
+
+    let values = complete(&mut server, &app, ".a {\n  display: |\n}\n");
+    assert!(values.contains(&"flex".to_string()));
+    assert!(values.contains(&"inherit".to_string()));
+    assert!(values.contains(&"var(--primary)".to_string()));
+
+    let vars = complete(&mut server, &app, ".a {\n  color: var(--|)\n}\n");
+    assert_eq!(vars, ["--primary", "--gap"]);
+
+    let extends = complete(&mut server, &app, ".a {\n  @extend $|\n}\n");
+    assert_eq!(extends, ["$panel"]);
+
+    let media = complete(&mut server, &app, "@media (--|) {\n}\n");
+    assert_eq!(media, ["--phone"]);
+
+    assert!(complete(&mut server, &app, ".a|\n").is_empty());
+    assert!(complete(&mut server, &app, "disp|\n").is_empty());
+}
