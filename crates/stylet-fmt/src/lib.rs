@@ -523,14 +523,32 @@ fn sort_declarations(entries: &mut [Entry]) {
                 .iter()
                 .map(|e| sort::key(&e.declaration_property().unwrap_or_default()))
                 .collect();
-            // A shorthand after its longhand overrides it; keep such runs as they are.
-            let unsafe_order = (0..keys.len())
-                .any(|i| (i + 1..keys.len()).any(|j| sort::overrides(&keys[i], &keys[j])));
-            if unsafe_order {
-                start = end;
-                continue;
+            // Sorted, except that a shorthand after its longhand (which it
+            // overrides) stays after it: repeatedly take the smallest entry
+            // whose longhands are placed.
+            let mut order = Vec::with_capacity(keys.len());
+            let mut placed = vec![false; keys.len()];
+            while order.len() < keys.len() {
+                let next = (0..keys.len())
+                    .filter(|&j| !placed[j])
+                    .filter(|&j| (0..j).all(|i| placed[i] || !sort::overrides(&keys[i], &keys[j])))
+                    .min_by(|&a, &b| keys[a].cmp(&keys[b]).then(a.cmp(&b)))
+                    .expect("the first unplaced entry is always free");
+                placed[next] = true;
+                order.push(next);
             }
-            run.sort_by_cached_key(|e| sort::key(&e.declaration_property().unwrap_or_default()));
+            // Move each entry to its new position.
+            let mut target = vec![0; order.len()];
+            for (position, &index) in order.iter().enumerate() {
+                target[index] = position;
+            }
+            for i in 0..target.len() {
+                while target[i] != i {
+                    let j = target[i];
+                    run.swap(i, j);
+                    target.swap(i, j);
+                }
+            }
             for (i, entry) in run.iter_mut().enumerate() {
                 entry.blank_before = i == 0 && blank;
             }

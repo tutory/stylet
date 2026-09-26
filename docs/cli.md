@@ -35,8 +35,8 @@ on its own line, keeps line breaks inside values as continuation lines, removes
 semicolons, adds blank lines around blocks and `@import` groups, puts one selector
 per line, normalizes spacing around commas and parentheses, writes strings in single
 quotes and fractions without a leading zero, and sorts properties (shorthands before
-their longhands, otherwise alphabetical). Runs where a shorthand follows one of its
-longhands — which then overrides it on purpose — are left unsorted. It refuses files
+their longhands, otherwise alphabetical). A shorthand that follows one of its
+longhands (and so overrides it) stays after it. It refuses files
 with syntax errors.
 
 Continuation lines that start with a string are aligned to the first string, so

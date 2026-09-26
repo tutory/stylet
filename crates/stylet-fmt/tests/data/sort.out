@@ -1,12 +1,12 @@
 // options: sort
 .a {
-  margin-top: 1px
-  color: red
   --b: 1
-  margin: 0
-  display: flex
   --a: 2
+  color: red
+  display: flex
   display: grid
+  margin-top: 1px
+  margin: 0
 
   all: unset
   z-index: 1
