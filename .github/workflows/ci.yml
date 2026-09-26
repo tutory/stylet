@@ -23,3 +23,20 @@ jobs:
       - run: cargo clippy --workspace --all-targets
       - run: cargo test --workspace
       - run: cargo clippy -p stylet-wasm --target wasm32-unknown-unknown
+
+  editors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: VS Code grammar
+        working-directory: editors/vscode
+        run: npm ci && npm test
+      - name: tree-sitter grammar
+        working-directory: editors/tree-sitter-stylet
+        run: |
+          npx -y tree-sitter-cli@0.27.0 generate
+          git diff --exit-code src
+          npx -y tree-sitter-cli@0.27.0 test

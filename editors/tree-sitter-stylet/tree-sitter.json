@@ -1,0 +1,18 @@
+{
+  "grammars": [
+    {
+      "name": "stylet",
+      "camelcase": "Stylet",
+      "scope": "source.stylet",
+      "path": ".",
+      "file-types": ["styl"],
+      "highlights": "queries/highlights.scm"
+    }
+  ],
+  "metadata": {
+    "version": "0.0.1",
+    "license": "MIT OR Apache-2.0",
+    "description": "stylet grammar for tree-sitter",
+    "links": { "repository": "https://github.com/tutory/stylet" }
+  }
+}

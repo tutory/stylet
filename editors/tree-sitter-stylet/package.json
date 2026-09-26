@@ -1,0 +1,9 @@
+{
+  "name": "tree-sitter-stylet",
+  "version": "0.0.1",
+  "description": "stylet grammar for tree-sitter",
+  "license": "MIT OR Apache-2.0",
+  "repository": "https://github.com/tutory/stylet",
+  "files": ["grammar.js", "src", "queries", "tree-sitter.json"],
+  "tree-sitter": [{ "scope": "source.stylet", "file-types": ["styl"], "highlights": "queries/highlights.scm" }]
+}

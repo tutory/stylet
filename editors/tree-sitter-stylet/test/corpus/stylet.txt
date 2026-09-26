@@ -1,0 +1,137 @@
+================================================================================
+Declarations end at the line break
+================================================================================
+
+.a {
+  color: red
+  margin: 0 auto
+  grid-template-areas: 'a b'
+                       'c d'
+  transition: opacity 1s,
+    transform 2s
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule_set
+    (selectors
+      (class_selector))
+    (block
+      (declaration
+        (property_name)
+        (value
+          (identifier)))
+      (declaration
+        (property_name)
+        (value
+          (number)
+          (identifier)))
+      (declaration
+        (property_name)
+        (value
+          (string)
+          (string)))
+      (declaration
+        (property_name)
+        (value
+          (identifier)
+          (number)
+          (identifier)
+          (number))))))
+
+================================================================================
+At-rules, imports, placeholders, extend
+================================================================================
+
+@import 'base' layer(base)
+@custom-media --phone (width < 600px)
+
+$button {
+  padding: .5rem
+}
+
+.save {
+  @extend $button
+
+  @media (--phone) {
+    display: none
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (import_statement
+    (string)
+    (call_expression
+      (function_name)
+      (identifier)))
+  (at_rule
+    (at_keyword)
+    (prelude
+      (custom_property_name)
+      (parenthesized_value
+        (identifier)
+        (number))))
+  (placeholder_rule
+    (placeholder_name)
+    (block
+      (declaration
+        (property_name)
+        (value
+          (number)))))
+  (rule_set
+    (selectors
+      (class_selector))
+    (block
+      (extend_statement
+        (placeholder_name))
+      (at_rule
+        (at_keyword)
+        (prelude
+          (parenthesized_value
+            (custom_property_name)))
+        (block
+          (declaration
+            (property_name)
+            (value
+              (identifier))))))))
+
+================================================================================
+Selectors and one-line blocks
+================================================================================
+
+.a > b, #id:hover::before, input[type="text"], .x\.y {
+  &.active { color: var(--c, #fff) !important }
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule_set
+    (selectors
+      (class_selector)
+      (combinator)
+      (tag_name)
+      (id_selector)
+      (pseudo_selector)
+      (pseudo_selector)
+      (tag_name)
+      (attribute_selector
+        (string))
+      (class_selector))
+    (block
+      (rule_set
+        (selectors
+          (nesting_selector)
+          (class_selector))
+        (block
+          (declaration
+            (property_name)
+            (value
+              (call_expression
+                (function_name)
+                (custom_property_name)
+                (color))
+              (important))))))))
