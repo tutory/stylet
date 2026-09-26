@@ -68,7 +68,13 @@ function syncScroll() {
   highlight.scrollLeft = source.scrollLeft
 }
 const diagnostics = $('diagnostics')
-const options = { minify: $('minify'), customMedia: $('customMedia'), sort: $('sort'), nested: $('nested') }
+const options = {
+  minify: $('minify'),
+  customMedia: $('customMedia'),
+  flatten: $('flatten'),
+  sort: $('sort'),
+  nested: $('nested'),
+}
 
 function encode(text) {
   const bytes = new TextEncoder().encode(text)
@@ -126,7 +132,7 @@ function showDiagnostics(list) {
 
 function update() {
   const text = source.value
-  const result = compile(text, options.minify.checked, options.customMedia.checked)
+  const result = compile(text, options.minify.checked, options.customMedia.checked, options.flatten.checked)
   render(output, result.css, 'css')
   renderSource()
   showDiagnostics(result.diagnostics)

@@ -217,6 +217,16 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         });
     }
 
+    /// Resolves a nested selector for `@extend`: with `:is()`, or expanded
+    /// when the output is flattened.
+    fn nest(&self, parent: &str, child: &str, separator: &str) -> String {
+        if self.options.flatten {
+            extend::nest_expanded(parent, child, separator)
+        } else {
+            extend::nest(parent, child, separator)
+        }
+    }
+
     fn truncate(&mut self, len: usize) {
         self.out.truncate(len);
         while self.mappings.last().is_some_and(|m| m.out >= len) {
@@ -373,7 +383,10 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         } else {
             Ctx::Style
         };
-        let head = text::serialize(selector.syntax(), Context::Selector, self.options.minify);
+        let mut head = text::serialize(selector.syntax(), Context::Selector, self.options.minify);
+        if ctx.in_style() {
+            head = prefix_element_selectors(&head, self.options.minify);
+        }
         if let Some(block) = rule.block() {
             self.block(ScopeKind::Style, head, range.start(), depth, true, |this| {
                 this.items(block.syntax(), inner, depth + 1)
@@ -442,7 +455,7 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
                 ScopeKind::Style => {
                     let separator = if self.options.minify { "," } else { ", " };
                     selector = Some(match selector {
-                        Some(parent) => extend::nest(&parent, &scope.head, separator),
+                        Some(parent) => self.nest(&parent, &scope.head, separator),
                         None => scope.head.clone(),
                     });
                 }
@@ -546,9 +559,9 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
                     self.selectors_of(p, copy, visiting)
                         .into_iter()
                         .map(|base| {
-                            nested.iter().fold(base, |parent, child| {
-                                extend::nest(&parent, child, separator)
-                            })
+                            nested
+                                .iter()
+                                .fold(base, |parent, child| self.nest(&parent, child, separator))
                         })
                         .collect()
                 }
@@ -794,4 +807,29 @@ fn url_at(pieces: &Pieces, i: usize) -> Option<(String, &'static str, usize)> {
         "\""
     };
     Some((unquote(&string.text).to_string(), quote, close + 1))
+}
+
+/// `input, .a` → `& input, .a`: nested selectors starting with an element name
+/// need `&` in browsers with the first version of CSS nesting (Safari 16.5–17.1,
+/// Chrome 112–119). The meaning is the same.
+fn prefix_element_selectors(selector: &str, minify: bool) -> String {
+    let parts = extend::split_list(selector);
+    if !parts
+        .iter()
+        .any(|p| p.starts_with(|c: char| c.is_ascii_alphabetic()))
+    {
+        return selector.to_string();
+    }
+    let separator = if minify { "," } else { ", " };
+    parts
+        .iter()
+        .map(|p| {
+            if p.starts_with(|c: char| c.is_ascii_alphabetic()) {
+                format!("& {p}")
+            } else {
+                p.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(separator)
 }

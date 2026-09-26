@@ -54,10 +54,11 @@ fn to_js<T: Serialize>(value: &T) -> JsValue {
 
 /// Compiles `src` to CSS: `{ css, diagnostics: [{ severity, message, start, end, line, column }] }`.
 #[wasm_bindgen]
-pub fn compile(src: &str, minify: bool, resolve_custom_media: bool) -> JsValue {
+pub fn compile(src: &str, minify: bool, resolve_custom_media: bool, flatten: bool) -> JsValue {
     let options = Options {
         minify,
         resolve_custom_media,
+        flatten,
         ..Options::default()
     };
     let out = compile_str(src, &options);

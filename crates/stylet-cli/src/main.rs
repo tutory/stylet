@@ -38,6 +38,9 @@ enum Command {
         /// Substitute `@custom-media` references.
         #[arg(long)]
         resolve_custom_media: bool,
+        /// Compile nesting away, for browsers without CSS nesting.
+        #[arg(long)]
+        flatten: bool,
         /// Rebuild when inputs change.
         #[arg(short, long)]
         watch: bool,
@@ -114,6 +117,7 @@ fn run(cli: Cli) -> Result<bool, String> {
             minify,
             source_map,
             resolve_custom_media,
+            flatten,
             watch,
         } => {
             let jobs = if inputs.is_empty() {
@@ -160,6 +164,7 @@ fn run(cli: Cli) -> Result<bool, String> {
                     minify: minify || config.build.minify,
                     source_map: source_map || config.build.source_map,
                     resolve_custom_media: resolve_custom_media || config.build.resolve_custom_media,
+                    flatten: flatten || config.build.flatten,
                     output: None,
                 },
                 cwd,

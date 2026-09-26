@@ -88,6 +88,22 @@ pub fn nest(parent: &str, child: &str, list_separator: &str) -> String {
     resolved.join(list_separator)
 }
 
+/// Like [`nest`], but without `:is()`: every parent × child combination, the
+/// way Stylus resolved selectors (for flattened output).
+pub fn nest_expanded(parent: &str, child: &str, list_separator: &str) -> String {
+    let mut out = Vec::new();
+    for parent in split_list(parent) {
+        for item in split_list(child) {
+            out.push(if item.contains('&') {
+                replace_amp(item, parent)
+            } else {
+                format!("{parent} {item}")
+            });
+        }
+    }
+    out.join(list_separator)
+}
+
 /// Applies non-overlapping `edits` to `out`, moving or dropping source mappings.
 pub fn apply_edits(
     out: &mut String,

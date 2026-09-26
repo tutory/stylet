@@ -1,0 +1,36 @@
+.toolbar .save, .footer .save {
+  padding: 4px;
+}
+
+.toolbar, .footer {
+  display: flex;
+}
+
+.toolbar a, .toolbar .link, .footer a, .footer .link {
+  color: red;
+}
+
+.toolbar .save:hover, .footer .save:hover {
+  color: blue;
+}
+
+@media (width < 600px) {
+  .toolbar, .footer {
+    display: block;
+  }
+  .toolbar input, .footer input {
+    width: 100%;
+  }
+}
+
+.toolbar, .footer {
+  gap: 1rem;
+}
+
+@layer base {
+  html {
+    margin: 0;
+  }
+}
+--- minified
+.toolbar .save,.footer .save{padding:4px;}.toolbar,.footer{display:flex;}.toolbar a,.toolbar .link,.footer a,.footer .link{color:red;}.toolbar .save:hover,.footer .save:hover{color:blue;}@media (width < 600px){.toolbar,.footer{display:block;}.toolbar input,.footer input{width:100%;}}.toolbar,.footer{gap:1rem;}@layer base{html{margin:0;}}

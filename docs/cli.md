@@ -15,6 +15,7 @@ stylet build --watch                             # rebuild on changes
 | `--minify` | Strip whitespace and comments |
 | `--source-map` | Write `<output>.map` and a `sourceMappingURL` comment |
 | `--resolve-custom-media` | Substitute `@custom-media` references |
+| `--flatten` | Compile nesting away, for browsers without CSS nesting |
 | `-w, --watch` | Rebuild when an input changes |
 
 Output isn't written when there are errors, so `--watch` keeps the last good build.
@@ -72,6 +73,7 @@ root = "."
 minify = false
 source_map = true
 resolve_custom_media = false
+flatten = false        # compile nesting away (browsers before 2023)
 
 [[entry]]
 input = "client/index.styl"

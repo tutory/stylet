@@ -62,7 +62,7 @@ async function makeEditable(highlight) {
     // A trailing newline needs a character after it to take up space.
     render(code, `${text} `, 'stylet')
     textarea.rows = text.split('\n').length
-    const result = compile(text, false, false)
+    const result = compile(text, false, false, false)
     render(output, result.css.trimEnd(), 'css')
     diagnostics.replaceChildren(
       ...result.diagnostics.map((d) => {

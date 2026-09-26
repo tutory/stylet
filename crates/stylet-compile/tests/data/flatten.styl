@@ -1,0 +1,24 @@
+// options: flatten
+$btn {
+  padding: 4px
+}
+
+.toolbar, .footer {
+  display: flex
+  a, .link {
+    color: red
+  }
+  .save {
+    @extend $btn
+    &:hover { color: blue }
+  }
+  @media (width < 600px) {
+    display: block
+    input { width: 100% }
+  }
+  gap: 1rem
+}
+
+@layer base {
+  html { margin: 0 }
+}

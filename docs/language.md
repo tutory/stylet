@@ -32,9 +32,16 @@ passed through unchanged.
 
 ## Nesting
 
-Nesting is emitted as native [CSS nesting](https://developer.mozilla.org/docs/Web/CSS/CSS_nesting)
-— stylet does not flatten selectors. `&` refers to the parent selector; `@media`,
-`@supports`, `@container` and `@layer` can be nested inside rules.
+Nesting is emitted as native [CSS nesting](https://developer.mozilla.org/docs/Web/CSS/CSS_nesting).
+`&` refers to the parent selector; `@media`, `@supports`, `@container` and `@layer`
+can be nested inside rules. Nested selectors starting with an element name get an
+`&` (`input` → `& input`), so the output also works with the first version of
+nesting (Safari 16.5+, Chrome 112+).
+
+For older browsers, `flatten = true` (or `--flatten`) compiles nesting away:
+selectors are combined like Stylus did (`.a, .b { .c {} }` → `.a .c, .b .c`),
+nested `@media` and friends move outwards, and declarations after nested rules
+become a rule of their own, so the order is kept.
 
 ## Imports
 

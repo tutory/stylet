@@ -24,6 +24,7 @@ fn fixtures() {
             .unwrap_or("");
         let options = Options {
             resolve_custom_media: flags.contains("resolve_custom_media"),
+            flatten: flags.contains("flatten"),
             ..Options::default()
         };
         let pretty = compile_str(&src, &options);

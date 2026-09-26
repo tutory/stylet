@@ -6,6 +6,7 @@
 mod custom_media;
 mod emit;
 mod extend;
+mod flatten;
 mod source_map;
 mod text;
 mod url;
@@ -23,6 +24,8 @@ pub struct Options {
     pub resolve_custom_media: bool,
     /// Generate a source map.
     pub source_map: bool,
+    /// Compile nesting away (for browsers without CSS nesting).
+    pub flatten: bool,
     /// Path the CSS will be written to. Relative `url()`s are rebased against its
     /// directory, and source map paths are relative to it. Defaults to the entry file.
     pub output: Option<PathBuf>,
@@ -101,8 +104,8 @@ pub fn compile_file<F: FileSystem>(
     emitter.entry(entry);
     emitter.finish();
     let emit::Emitter {
-        out: css,
-        mappings,
+        out: mut css,
+        mut mappings,
         mut diagnostics,
         dependencies,
         sources,
@@ -121,6 +124,10 @@ pub fn compile_file<F: FileSystem>(
         }
     }
     diagnostics.sort_by_key(|d| (d.file, d.range.start()));
+
+    if options.flatten {
+        (css, mappings) = flatten::flatten(&css, &mappings, options.minify);
+    }
 
     let source_map = options.source_map.then(|| {
         let file_name = output.file_name().map(|n| n.to_string_lossy().into_owned());

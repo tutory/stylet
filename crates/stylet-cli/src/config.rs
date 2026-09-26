@@ -36,6 +36,8 @@ pub struct Build {
     pub source_map: bool,
     #[serde(default)]
     pub resolve_custom_media: bool,
+    #[serde(default)]
+    pub flatten: bool,
 }
 
 #[derive(Debug, Default, Deserialize)]
