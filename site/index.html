@@ -111,7 +111,30 @@
       </div>
       <div>
         <h2>Fast</h2>
-        <p>A lossless Rust parser and a single binary. A 35,000-declaration app builds in about 30&nbsp;ms.</p>
+        <p>A lossless Rust parser and a single binary. A 34,000-declaration app builds in about 30&nbsp;ms — about 20× faster than Stylus.</p>
+      </div>
+    </section>
+
+    <section class="compare">
+      <h2>How it compares</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th scope="col"></th><th scope="col">CSS</th><th scope="col">Stylus</th><th scope="col" class="us">stylet</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Syntax</th><td>braces and semicolons</td><td>indentation, most punctuation optional</td><td class="us">braces, no semicolons</td></tr>
+            <tr><th scope="row">Nesting</th><td class="yes">native (2023+)</td><td class="yes">flattened</td><td class="us yes">native, or flattened</td></tr>
+            <tr><th scope="row">Imports</th><td>separate requests at runtime</td><td class="yes">bundled</td><td class="us yes">bundled, deduplicated, aliases, <code>layer()</code></td></tr>
+            <tr><th scope="row">Extend</th><td class="no">—</td><td class="yes">selectors and placeholders</td><td class="us yes">placeholders</td></tr>
+            <tr><th scope="row">Variables</th><td class="yes">custom properties</td><td class="yes">compile-time variables</td><td class="us yes">custom properties</td></tr>
+            <tr><th scope="row">Mixins, functions, loops</th><td class="no">—</td><td class="yes">yes</td><td class="us no">no, by design</td></tr>
+            <tr><th scope="row"><code>@custom-media</code></th><td>specified, little support</td><td class="no">—</td><td class="us yes">yes, resolved at build time</td></tr>
+            <tr><th scope="row">Formatter</th><td>Prettier</td><td>third-party</td><td class="us yes">built in, opinionated</td></tr>
+            <tr><th scope="row">Runs on</th><td>the browser</td><td>Node.js</td><td class="us">a single Rust binary (or WebAssembly)</td></tr>
+            <tr><th scope="row">Build of a 34,000-declaration app</th><td>—</td><td>≈ 0.6 s</td><td class="us yes">≈ 0.03 s</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
 

@@ -202,6 +202,80 @@ pre {
   }
 }
 
+.compare {
+  padding-bottom: 3rem
+
+  h2 {
+    font-size: 1.4rem
+    margin: 0 0 1rem
+  }
+}
+
+.table-scroll {
+  overflow-x: auto
+}
+
+table {
+  border-collapse: collapse
+  font-size: .95rem
+  min-width: 36rem
+  width: 100%
+
+  th,
+  td {
+    border-bottom: 1px solid var(--border)
+    padding: .6rem .75rem
+    text-align: left
+    vertical-align: top
+  }
+
+  thead th {
+    color: var(--muted)
+    font-weight: 600
+  }
+
+  tbody th {
+    font-weight: 500
+    white-space: nowrap
+  }
+
+  td {
+    color: var(--muted)
+  }
+
+  .us {
+    background: color-mix(in srgb, var(--accent) 7%, transparent)
+    color: var(--text)
+  }
+
+  thead .us {
+    color: var(--accent)
+  }
+
+  .yes::before {
+    color: var(--accent)
+    content: '✓ '
+  }
+
+  .no {
+    opacity: .7
+  }
+
+  @media (--narrow) {
+    font-size: .85rem
+    min-width: 0
+
+    th,
+    td {
+      padding: .5rem .4rem
+    }
+
+    tbody th {
+      white-space: normal
+    }
+  }
+}
+
 .start {
   padding-bottom: 3rem
 
