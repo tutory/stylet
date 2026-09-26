@@ -1,4 +1,6 @@
-# stylet
+<p align="center"><img src="site/logo.svg" alt="" width="96"></p>
+
+<h1 align="center">stylet</h1>
 
 A small, fast successor to [Stylus](https://stylus-lang.com), written in Rust.
 
