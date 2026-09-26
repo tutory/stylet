@@ -415,6 +415,16 @@ fn classify(node: Node, pending_selectors: &mut Vec<(u32, String)>) -> StmtKind 
     let text = node.line.text.as_str();
     let has_children = !node.children.is_empty();
 
+    // `+mixin()` with a block: a block mixin.
+    if let Some(rest) = text.strip_prefix('+')
+        && rest.starts_with(|c: char| c.is_ascii_alphabetic())
+        && rest.contains('(')
+    {
+        return StmtKind::Unknown {
+            text: text.to_string(),
+            reason: "block mixins (`+mixin()`) aren't supported by the migration".into(),
+        };
+    }
     if text.starts_with("//") || text.starts_with("/*") {
         return StmtKind::Comment(text.to_string());
     }

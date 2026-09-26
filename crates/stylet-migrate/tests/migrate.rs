@@ -242,3 +242,36 @@ fn custom_media() {
     );
     assert!(inline.files[Path::new("/p/index.styl")].contains("@media (max-width: 600px) {"));
 }
+
+/// Stylus built-ins and syntax the migration lacks are reported as gaps.
+#[test]
+fn unsupported_features() {
+    let mut fs = MemoryFs::default();
+    fs.insert(
+        "/p/index.styl",
+        ".a\n  color: mix(#fff, #000)\n  b: toPx(1mm)\n  +grid()\n    c: d\n",
+    );
+    let migration = migrate(
+        &fs,
+        Path::new("/p"),
+        &[PathBuf::from("/p/index.styl")],
+        &Options::default(),
+    );
+    let gaps: Vec<_> = migration
+        .warnings
+        .iter()
+        .filter(|w| stylet_migrate::is_gap(w))
+        .map(|w| w.category)
+        .collect();
+    assert_eq!(gaps, ["unsupported", "syntax"]);
+    let js: Vec<_> = migration
+        .warnings
+        .iter()
+        .filter(|w| w.category == "js-function")
+        .collect();
+    assert_eq!(js.len(), 1);
+    let link = stylet_migrate::issue_link(&migration.warnings[0], Some("  color: mix(#fff, #000)"));
+    assert!(link.starts_with(
+        "https://github.com/tutory/stylet/issues/new?labels=migrate&title=migrate%3A%20"
+    ));
+}

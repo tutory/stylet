@@ -1512,6 +1512,14 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                 self.warn(line, "function", message);
                 v
             }
+            builtins::Result::Unsupported(v) => {
+                self.warn(
+                    line,
+                    "unsupported",
+                    format!("the Stylus built-in `{name}()` isn't supported by the migration; kept as a CSS function"),
+                );
+                v
+            }
             builtins::Result::Unknown(v) => {
                 self.unresolved
                     .insert(v.css(false), (name.to_string(), args.clone()));

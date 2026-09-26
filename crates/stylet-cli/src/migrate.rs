@@ -1,7 +1,7 @@
 //! `stylet migrate`.
 
 use std::path::{Path, PathBuf};
-use stylet_migrate::{Options, migrate, summary};
+use stylet_migrate::{Options, is_gap, issue_link, migrate, summary};
 use stylet_resolve::{OsFs, normalize};
 
 pub struct Args {
@@ -50,6 +50,7 @@ pub fn run(args: &Args, cwd: &Path) -> Result<bool, String> {
     for (category, count) in summary(&migration.warnings) {
         eprintln!("  {count:>5}  {category}");
     }
+    report_gaps(&migration.warnings);
     if !migration.errors.is_empty() {
         return Ok(false);
     }
@@ -69,4 +70,35 @@ pub fn run(args: &Args, cwd: &Path) -> Result<bool, String> {
             .map_err(|e| format!("can't write {}: {e}", target.display()))?;
     }
     Ok(true)
+}
+
+/// Lists Stylus features the migration doesn't support yet, with links to
+/// pre-filled issues.
+fn report_gaps(warnings: &[stylet_migrate::Warning]) {
+    let mut seen = std::collections::HashSet::new();
+    let gaps: Vec<_> = warnings
+        .iter()
+        .filter(|w| is_gap(w) && seen.insert(w.message.clone()))
+        .collect();
+    if gaps.is_empty() {
+        return;
+    }
+    eprintln!();
+    eprintln!("Some Stylus features aren't supported by the migration yet. If you need one,");
+    eprintln!("please open an issue (the links are pre-filled):");
+    for w in gaps.iter().take(10) {
+        let line = std::fs::read_to_string(&w.path).ok().and_then(|text| {
+            text.lines()
+                .nth(w.line.saturating_sub(1) as usize)
+                .map(str::to_string)
+        });
+        eprintln!("  - {}", w.message);
+        eprintln!(
+            "    {}",
+            issue_link(w, line.as_deref().filter(|_| w.line > 0))
+        );
+    }
+    if gaps.len() > 10 {
+        eprintln!("  … and {} more", gaps.len() - 10);
+    }
 }

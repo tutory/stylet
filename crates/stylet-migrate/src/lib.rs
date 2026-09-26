@@ -125,6 +125,45 @@ pub fn migrate<F: FileSystem>(
     migration
 }
 
+/// Where to request support for Stylus features the migration lacks.
+pub const ISSUES_URL: &str = "https://github.com/tutory/stylet/issues/new";
+
+/// Whether a warning is about a Stylus feature the migration doesn't handle yet
+/// (as opposed to something stylet leaves out by design, like loops).
+pub fn is_gap(warning: &Warning) -> bool {
+    matches!(warning.category, "unsupported" | "syntax" | "expression")
+}
+
+/// A link to a pre-filled GitHub issue for a migration gap.
+pub fn issue_link(warning: &Warning, source_line: Option<&str>) -> String {
+    let title = format!("migrate: {}", warning.message);
+    let mut body = format!(
+        "`stylet migrate` reported:\n\n> [{}] {}\n",
+        warning.category, warning.message
+    );
+    if let Some(line) = source_line {
+        body += &format!("\nStylus source:\n\n```styl\n{}\n```\n", line.trim_end());
+    }
+    format!(
+        "{ISSUES_URL}?labels=migrate&title={}&body={}",
+        encode(&title),
+        encode(&body)
+    )
+}
+
+fn encode(text: &str) -> String {
+    let mut out = String::new();
+    for b in text.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out += &format!("%{b:02X}"),
+        }
+    }
+    out
+}
+
 /// Warning counts per category.
 pub fn summary(warnings: &[Warning]) -> BTreeMap<&'static str, usize> {
     let mut counts = BTreeMap::new();

@@ -64,6 +64,11 @@ to a warning with file and line. Categories:
 | `import-dependent` | a file converts differently depending on where it's imported; the last version is kept |
 | `url` | relative `url()`: Stylus left it relative to the output, stylet rebases it from the source file |
 | `asset`, `import` | a file that couldn't be found |
+| `unsupported`, `syntax`, `expression` | a Stylus feature the migration doesn't handle yet (e.g. a built-in like `mix()`, block mixins) |
+
+For the last group `stylet migrate` ends with links to pre-filled
+[GitHub issues](https://github.com/tutory/stylet/issues) — if you need one of these
+features, please open one.
 
 Name collisions between generated custom properties and existing ones stop the
 migration; resolve them with `--var-prefix` or by renaming.
