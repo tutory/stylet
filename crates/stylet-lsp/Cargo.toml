@@ -15,3 +15,9 @@ stylet-syntax.workspace = true
 stylet-resolve.workspace = true
 stylet-compile.workspace = true
 stylet-fmt.workspace = true
+lsp-server = "0.10.0"
+lsp-types = "0.97.0"
+serde_json = "1.0.151"
+
+[dev-dependencies]
+tempfile = "3.27.0"

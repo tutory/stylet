@@ -15,6 +15,7 @@ stylet-resolve = { path = "crates/stylet-resolve" }
 stylet-compile = { path = "crates/stylet-compile" }
 stylet-fmt = { path = "crates/stylet-fmt" }
 stylet-migrate = { path = "crates/stylet-migrate" }
+stylet-lsp = { path = "crates/stylet-lsp" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

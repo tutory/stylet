@@ -84,6 +84,8 @@ enum Command {
         #[arg(long)]
         preload: Vec<PathBuf>,
     },
+    /// Run the language server on stdin/stdout (for editors).
+    Lsp,
     /// Format files in place. Directories are searched for `.styl` files;
     /// `-` formats stdin to stdout.
     Fmt {
@@ -223,6 +225,24 @@ fn run(cli: Cli) -> Result<bool, String> {
                 },
             };
             migrate::run(&args, &cwd)
+        }
+        Command::Lsp => {
+            let settings = stylet_lsp::Settings {
+                resolve: config.resolve(),
+                entries: config
+                    .entries
+                    .iter()
+                    .map(|e| config.path(&e.input))
+                    .collect(),
+                compile: Options {
+                    resolve_custom_media: config.build.resolve_custom_media,
+                    flatten: config.build.flatten,
+                    ..Options::default()
+                },
+                fmt: config.fmt.options()?,
+            };
+            stylet_lsp::run(settings).map_err(|e| e.to_string())?;
+            Ok(true)
         }
         Command::Fmt { paths, check } => {
             let options = config.fmt.options()?;

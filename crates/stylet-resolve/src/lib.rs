@@ -91,6 +91,14 @@ impl<F> Loader<F> {
         &self.config
     }
 
+    /// Every file loaded so far (including invalidated older versions).
+    pub fn files(&self) -> impl Iterator<Item = (FileId, &SourceFile)> {
+        self.files
+            .iter()
+            .enumerate()
+            .map(|(i, f)| (FileId(i as u32), f))
+    }
+
     pub fn file(&self, id: FileId) -> &SourceFile {
         &self.files[id.0 as usize]
     }
