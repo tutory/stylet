@@ -1,0 +1,96 @@
+{
+  "name": "stylet",
+  "displayName": "stylet",
+  "description": "stylet language support: highlighting, diagnostics, formatting, go to definition",
+  "version": "0.0.1",
+  "publisher": "tutory",
+  "license": "MIT OR Apache-2.0",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tutory/stylet"
+  },
+  "homepage": "https://tutory.github.io/stylet/",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters",
+    "Linters"
+  ],
+  "activationEvents": [
+    "workspaceContains:stylet.toml"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "stylet",
+        "aliases": [
+          "stylet"
+        ],
+        "extensions": [
+          ".styl"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icon.png",
+          "dark": "./icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "stylet",
+        "scopeName": "source.stylet",
+        "path": "./syntaxes/stylet.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "stylet",
+      "properties": {
+        "stylet.path": {
+          "type": "string",
+          "default": "stylet",
+          "description": "Path to the stylet binary (used for `stylet lsp`)."
+        },
+        "stylet.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication with the stylet language server."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[stylet]": {
+        "editor.defaultFormatter": "tutory.stylet",
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+      }
+    },
+    "commands": [
+      {
+        "command": "stylet.restartServer",
+        "title": "stylet: Restart Language Server"
+      }
+    ]
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "scripts": {
+    "test": "node test/grammar.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.2.0"
+  }
+}

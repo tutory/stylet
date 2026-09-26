@@ -1,0 +1,277 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "stylet",
+  "scopeName": "source.stylet",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#at-rule"
+    },
+    {
+      "include": "#block"
+    },
+    {
+      "include": "#selector"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.css",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.css"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.comment.css"
+            }
+          }
+        },
+        {
+          "name": "comment.line.double-slash.stylet",
+          "match": "(?<![:\\w])//.*$"
+        }
+      ]
+    },
+    "at-rule": {
+      "begin": "(@)([\\w-]+)",
+      "beginCaptures": {
+        "0": {
+          "name": "keyword.control.at-rule.stylet"
+        },
+        "1": {
+          "name": "punctuation.definition.keyword.css"
+        }
+      },
+      "end": "(?=[{}])|$",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#placeholder"
+        },
+        {
+          "include": "#values"
+        },
+        {
+          "name": "keyword.operator.logical.css",
+          "match": "\\b(and|or|not|only)\\b"
+        },
+        {
+          "name": "support.type.property-name.media.css",
+          "match": "\\b[a-z-]+(?=\\s*:)"
+        }
+      ]
+    },
+    "block": {
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.property-list.begin.bracket.curly.css"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.property-list.end.bracket.curly.css"
+        }
+      },
+      "name": "meta.property-list.stylet",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#at-rule"
+        },
+        {
+          "include": "#declaration"
+        },
+        {
+          "include": "#block"
+        },
+        {
+          "include": "#selector"
+        },
+        {
+          "include": "#values"
+        }
+      ]
+    },
+    "declaration": {
+      "begin": "(?:^|(?<=\\{))\\s*(?:(--[\\w-]+)|(-?[a-zA-Z][\\w-]*))\\s*(:)(?=\\s|$)",
+      "beginCaptures": {
+        "1": {
+          "name": "variable.css"
+        },
+        "2": {
+          "name": "support.type.property-name.css"
+        },
+        "3": {
+          "name": "punctuation.separator.key-value.css"
+        }
+      },
+      "end": "$|(?=\\})",
+      "name": "meta.property-value.stylet",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#values"
+        }
+      ]
+    },
+    "placeholder": {
+      "name": "entity.other.attribute-name.placeholder.stylet",
+      "match": "\\$[\\w-]+"
+    },
+    "selector": {
+      "patterns": [
+        {
+          "include": "#placeholder"
+        },
+        {
+          "name": "entity.name.tag.nesting.css",
+          "match": "&"
+        },
+        {
+          "name": "entity.other.attribute-name.class.css",
+          "match": "\\.-?[a-zA-Z_][\\w-]*"
+        },
+        {
+          "name": "entity.other.attribute-name.id.css",
+          "match": "#-?[a-zA-Z_][\\w-]*"
+        },
+        {
+          "name": "entity.other.attribute-name.pseudo-element.css",
+          "match": "::[\\w-]+"
+        },
+        {
+          "name": "entity.other.attribute-name.pseudo-class.css",
+          "match": ":[\\w-]+"
+        },
+        {
+          "name": "meta.attribute-selector.css",
+          "begin": "\\[",
+          "end": "\\]",
+          "patterns": [
+            {
+              "include": "#strings"
+            },
+            {
+              "name": "entity.other.attribute-name.css",
+              "match": "[\\w-]+"
+            },
+            {
+              "name": "keyword.operator.pattern.css",
+              "match": "[~|^$*]?="
+            }
+          ]
+        },
+        {
+          "name": "entity.name.tag.wildcard.css",
+          "match": "\\*"
+        },
+        {
+          "name": "keyword.operator.combinator.css",
+          "match": "[>+~]"
+        },
+        {
+          "name": "entity.name.tag.css",
+          "match": "(?<![\\w$.#-])(?:a|abbr|address|area|article|aside|audio|b|base|bdi|bdo|blockquote|body|br|button|canvas|caption|cite|code|col|colgroup|data|datalist|dd|del|details|dfn|dialog|div|dl|dt|em|embed|fieldset|figcaption|figure|footer|form|h1|h2|h3|h4|h5|h6|head|header|hgroup|hr|html|i|iframe|img|input|ins|kbd|label|legend|li|link|main|map|mark|menu|meta|meter|nav|noscript|object|ol|optgroup|option|output|p|picture|pre|progress|q|rp|rt|ruby|s|samp|script|search|section|select|slot|small|source|span|strong|style|sub|summary|sup|table|tbody|td|template|textarea|tfoot|th|thead|time|title|tr|track|u|ul|var|video|wbr|svg|path|circle|rect|line|polyline|polygon|ellipse|g|text|tspan|use|defs|symbol|image|foreignObject)(?![\\w-])"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.css",
+          "begin": "\"",
+          "end": "\"|$",
+          "patterns": [
+            {
+              "name": "constant.character.escape.css",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.css",
+          "begin": "'",
+          "end": "'|$",
+          "patterns": [
+            {
+              "name": "constant.character.escape.css",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "values": {
+      "patterns": [
+        {
+          "include": "#strings"
+        },
+        {
+          "name": "meta.function.url.css",
+          "match": "(url)(\\()([^'\\\")]*)(\\))",
+          "captures": {
+            "1": {
+              "name": "support.function.url.css"
+            },
+            "2": {
+              "name": "punctuation.section.function.begin.bracket.round.css"
+            },
+            "3": {
+              "name": "variable.parameter.url.css"
+            },
+            "4": {
+              "name": "punctuation.section.function.end.bracket.round.css"
+            }
+          }
+        },
+        {
+          "name": "keyword.other.important.css",
+          "match": "!\\s*important\\b"
+        },
+        {
+          "name": "constant.other.color.rgb-value.hex.css",
+          "match": "#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\\b"
+        },
+        {
+          "match": "(?<![\\w-])([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)(%|[a-zA-Z]+)?",
+          "captures": {
+            "1": {
+              "name": "constant.numeric.css"
+            },
+            "2": {
+              "name": "keyword.other.unit.css"
+            }
+          }
+        },
+        {
+          "name": "variable.argument.css",
+          "match": "--[\\w-]+"
+        },
+        {
+          "name": "support.function.misc.css",
+          "match": "[a-zA-Z][\\w-]*(?=\\()"
+        },
+        {
+          "name": "punctuation.separator.list.comma.css",
+          "match": ","
+        }
+      ]
+    }
+  }
+}
