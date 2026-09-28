@@ -96,8 +96,12 @@ reply saying why and what to do, and reported as a warning with file and line:
 }
 ```
 
-Code from a mixin body names the mixin and the line in its definition
-(`part of mixin `bubble()` was not migrated (client/functions.styl:110)`).
+Code from a mixin body names the mixin and the line in its definition:
+
+```styl
+// stylet-migrate: part of mixin `bubble()` was not migrated (client/functions.styl:110)
+// ↳ loops aren't migrated; consider CSS custom properties (or --unroll-loops)
+```
 
 Categories:
 
