@@ -31,6 +31,7 @@
   }
 
   // stylet-migrate: @extend .other
+  // ↳ only placeholders can be extended; turn the target into a placeholder
 }
 === /p/index.styl
 @import 'vars'

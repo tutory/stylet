@@ -25,9 +25,12 @@
   // stylet-migrate: for n in 1..2
   // stylet-migrate:   .l-{n}
   // stylet-migrate:     x: n
+  // ↳ loops aren't migrated; consider CSS custom properties (or --unroll-loops)
   // stylet-migrate: if isDevelopment
   // stylet-migrate:   outline: red
+  // ↳ condition on `isDevelopment`, which isn't defined in Stylus (injected from JS?); use --define isDevelopment=…
   // stylet-migrate: @extend .other
+  // ↳ only placeholders can be extended; turn the target into a placeholder
 }
 === /p/index.styl
 @import 'vars'

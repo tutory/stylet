@@ -337,13 +337,28 @@ impl<'a, F: FileSystem> Interp<'a, F> {
 
     /// Original source lines of a statement, as `// stylet-migrate:` comments.
     fn commented(&mut self, stmt: &Stmt, ctx: Ctx, out: &mut Vec<Out>) {
+        let path = self.current_file();
         if ctx.in_mixin {
-            out.push(Out::Comment(
-                "// stylet-migrate: part of a mixin was not migrated".into(),
-            ));
+            // The code is in the mixin's file: point there, with the reason.
+            let mixin = self.calling.last().cloned().unwrap_or_default();
+            let at = format!(
+                "{}:{}",
+                path.strip_prefix(&self.root).unwrap_or(&path).display(),
+                stmt.line
+            );
+            out.push(Out::Comment(format!(
+                "// stylet-migrate: part of mixin `{mixin}()` was not migrated ({at})"
+            )));
+            if let Some(w) = self
+                .warnings
+                .iter()
+                .rev()
+                .find(|w| w.path == path && w.line == stmt.line)
+            {
+                out.push(Out::Comment(format!("// ↳ {}", reason(&w.message))));
+            }
             return;
         }
-        let path = self.current_file();
         let Some(source) = self.sources.get(&path) else {
             return;
         };
@@ -361,6 +376,16 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             out.push(Out::Comment(
                 format!("// stylet-migrate: {text}").trim_end().to_string(),
             ));
+        }
+        // Reply with why it wasn't converted (the warning for this line).
+        if let Some(w) = self
+            .warnings
+            .iter()
+            .rev()
+            .find(|w| w.path == path && w.line == stmt.line)
+        {
+            let message = reason(&w.message);
+            out.push(Out::Comment(format!("// ↳ {message}")));
         }
     }
 
@@ -1894,6 +1919,15 @@ fn declarations<'o>(outs: &'o [Out], names: &mut Vec<&'o str>) {
             _ => {}
         }
     }
+}
+
+/// A warning message without the quoted code it starts with (the comment
+/// above already shows the code): "`@extend .x`: only …" → "only …".
+fn reason(message: &str) -> &str {
+    message
+        .strip_prefix('`')
+        .and_then(|rest| rest.split_once("`: "))
+        .map_or(message, |(_, reason)| reason)
 }
 
 fn has_extend(outs: &[Out]) -> bool {

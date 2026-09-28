@@ -86,8 +86,20 @@ them. Check the pages that use converted mixins before relying on it.
 
 ## Warnings
 
-Whatever can't be converted statically is kept as `// stylet-migrate:` comments next
-to a warning with file and line. Categories:
+Whatever can't be converted statically is kept as `// stylet-migrate:` comments, with a
+reply saying why and what to do, and reported as a warning with file and line:
+
+```styl
+.modal {
+  // stylet-migrate: @extends .scrollShadows
+  // ↳ only placeholders can be extended; turn the target into a placeholder
+}
+```
+
+Code from a mixin body names the mixin and the line in its definition
+(`part of mixin `bubble()` was not migrated (client/functions.styl:110)`).
+
+Categories:
 
 | Category | Meaning / what to do |
 |---|---|
