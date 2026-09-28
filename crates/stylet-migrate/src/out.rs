@@ -29,6 +29,16 @@ pub enum Out {
         name: String,
         value: String,
     },
+    /// A mixin call's result, which may become an `@extend` of a placeholder
+    /// (decided once every entry is migrated); rendered inline until then.
+    Mixin {
+        id: usize,
+        /// The call site (file, line).
+        site: (std::path::PathBuf, u32),
+        body: Vec<Out>,
+    },
+    /// Where a mixin was defined: its placeholders go here.
+    MixinDefs(String),
 }
 
 pub fn render(outs: &[Out]) -> String {
@@ -76,6 +86,8 @@ fn block(outs: &[Out], depth: usize, s: &mut String) {
                 line(s, depth, &format!("@import '{path}'{layer}"));
             }
             Out::Extend(targets) => line(s, depth, &format!("@extend {targets}")),
+            Out::Mixin { body, .. } => block(body, depth, s),
+            Out::MixinDefs(_) => {}
             Out::Rule { selectors, body } => {
                 let last = selectors.len().saturating_sub(1);
                 for (i, selector) in selectors.iter().enumerate() {

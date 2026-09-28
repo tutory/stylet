@@ -45,7 +45,44 @@ a placeholder emitted before it.
 | `--var-prefix <p>` | Prefix for generated custom properties (`--<p>name`) |
 | `--custom-media` | Variables in media conditions become `@custom-media` (build with `resolve_custom_media = true`) |
 | `--unroll-loops` | Unroll `for` loops instead of commenting them out |
+| `--mixins inline\|placeholders` | Inline every mixin call (default), or turn repeated results into placeholders (below) |
 | `--out <dir>`, `--dry-run`, `-q` | Where to write, report only, summary only |
+
+## Mixins as placeholders
+
+With `--mixins placeholders`, a mixin result used at two or more call sites becomes a
+`$placeholder` where the mixin was defined, and the call sites `@extend` it:
+
+```styl
+$line-clamp-1 {
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+}
+
+.title {
+  @extend $line-clamp-1
+}
+```
+
+Each distinct result gets its own placeholder, named after the mixin and its arguments
+(`$flexify`, `$flexify-space-between-center`), so conditions and arguments are already
+decided. A call is inlined instead when a placeholder could change the result:
+
+- the result is a single declaration, or used only once
+- the call is inside `@media`, `@supports` or another conditional rule
+- the rule sets an overlapping property before the call (the placeholder's declarations
+  would come first and lose)
+- the result contains an `@extend` itself
+- the mixin comes from `--preload`, is defined inside a block or in a file imported inside a rule
+- the call is in a nested layer, or the call site converts differently between entries
+
+Placeholders for calls inside a cascade layer are wrapped in that `@layer`, preceded by a
+`@layer a, b, c` statement that keeps the layer order.
+
+One difference remains: the declarations now come from where the mixin is defined, so a
+rule with the same specificity between the definition and the call site now wins over
+them. Check the pages that use converted mixins before relying on it.
 
 ## Warnings
 

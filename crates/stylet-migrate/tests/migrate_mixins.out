@@ -1,0 +1,87 @@
+=== /p/a.styl
+.a {
+  @extend $flexify
+  @extend $line-clamp
+  font-weight: bold
+
+  &:focus {
+    @extend $ring
+  }
+}
+
+.b {
+  @extend $flexify
+  @extend $line-clamp
+  font-weight: bold
+  -webkit-line-clamp: 2
+  overflow: hidden
+
+  &:focus {
+    @extend $ring
+  }
+}
+
+.conflict {
+  display: block
+  display: flex
+  justify-content: center
+}
+
+.media {
+  @media (width < 600px) {
+    display: flex
+    justify-content: center
+  }
+}
+=== /p/mixins.styl
+$flexify-start {
+  display: flex
+  justify-content: start
+}
+
+@layer core {
+  $flexify {
+    display: flex
+    justify-content: center
+  }
+}
+
+@layer core {
+  $line-clamp {
+    overflow: hidden
+    white-space: nowrap
+  }
+}
+
+$ring {
+  outline: 1px solid
+}
+=== /p/one.styl
+@import 'mixins'
+@import 'a' layer(core)
+@import 'shared' layer(core)
+
+.top {
+  @extend $flexify-start
+}
+
+.top2 {
+  @extend $flexify-start
+}
+=== /p/shared.styl
+.s {
+  display: flex
+  justify-content: center
+}
+
+.t {
+  display: flex
+  justify-content: center
+}
+=== /p/two.styl
+@import 'mixins'
+@import 'shared'
+=== placeholders
+$flexify: 2
+$flexify-start: 2
+$line-clamp: 2

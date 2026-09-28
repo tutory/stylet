@@ -50,6 +50,18 @@ pub fn run(args: &Args, cwd: &Path) -> Result<bool, String> {
     for (category, count) in summary(&migration.warnings) {
         eprintln!("  {count:>5}  {category}");
     }
+    if !migration.mixin_placeholders.is_empty() {
+        let sites: usize = migration.mixin_placeholders.iter().map(|(_, n)| n).sum();
+        eprintln!(
+            "{} mixin results became placeholders ({sites} call sites):",
+            migration.mixin_placeholders.len()
+        );
+        if !args.quiet {
+            for (name, count) in &migration.mixin_placeholders {
+                eprintln!("  {count:>5}  {name}");
+            }
+        }
+    }
     report_gaps(&migration.warnings);
     if !migration.errors.is_empty() {
         return Ok(false);

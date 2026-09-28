@@ -1,7 +1,7 @@
 //! End-to-end migration of a small in-memory Stylus project.
 
 use std::path::{Path, PathBuf};
-use stylet_migrate::{Options, VarMode, migrate};
+use stylet_migrate::{MixinMode, Options, VarMode, migrate};
 use stylet_resolve::MemoryFs;
 
 const FILES: &[(&str, &str)] = &[
@@ -274,4 +274,83 @@ fn unsupported_features() {
     assert!(link.starts_with(
         "https://github.com/tutory/stylet/issues/new?labels=migrate&title=migrate%3A%20"
     ));
+}
+
+/// `--mixins placeholders`: results used at two or more call sites become
+/// placeholders (in the call sites' layer); everything else is inlined.
+#[test]
+fn mixin_placeholders() {
+    let mut fs = MemoryFs::default();
+    fs.insert(
+        "/p/mixins.styl",
+        "\
+flexify(h = center)
+  display: flex
+  justify-content: h
+
+line-clamp(n)
+  overflow: hidden
+  if n == 1
+    white-space: nowrap
+  else
+    -webkit-line-clamp: n
+
+bold()
+  font-weight: bold
+
+focus()
+  &:focus
+    @extend $ring
+
+$ring
+  outline: 1px solid
+",
+    );
+    fs.insert(
+        "/p/one.styl",
+        "@import 'mixins'\n@layer core\n  @import 'a'\n  @import 'shared'\n.top\n  flexify(start)\n.top2\n  flexify(start)\n",
+    );
+    fs.insert("/p/two.styl", "@import 'mixins'\n@import 'shared'\n");
+    fs.insert(
+        "/p/a.styl",
+        "\
+.a
+  flexify()
+  line-clamp: 1
+  bold()
+  focus()
+.b
+  flexify()
+  line-clamp(1)
+  line-clamp(2)
+  bold()
+  focus()
+.conflict
+  display: block
+  flexify()
+.media
+  @media (width < 600px)
+    flexify()
+",
+    );
+    fs.insert("/p/shared.styl", ".s\n  flexify()\n.t\n  flexify()\n");
+    let options = Options {
+        mixins: MixinMode::Placeholders,
+        ..Options::default()
+    };
+    let migration = migrate(
+        &fs,
+        Path::new("/p"),
+        &[PathBuf::from("/p/one.styl"), PathBuf::from("/p/two.styl")],
+        &options,
+    );
+    let mut out = String::new();
+    for (path, text) in &migration.files {
+        out += &format!("=== {}\n{text}", path.display());
+    }
+    out += "=== placeholders\n";
+    for (name, sites) in &migration.mixin_placeholders {
+        out += &format!("{name}: {sites}\n");
+    }
+    expect_test::expect_file!["migrate_mixins.out"].assert_eq(&out);
 }

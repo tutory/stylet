@@ -72,6 +72,10 @@ enum Command {
         /// Unroll `for` loops instead of commenting them out.
         #[arg(long)]
         unroll_loops: bool,
+        /// `inline`: mixin calls are inlined; `placeholders`: results used at
+        /// several places become `$placeholder`s (where that can't change the result).
+        #[arg(long, default_value = "inline", value_parser = ["inline", "placeholders"])]
+        mixins: String,
         /// Turn variables in media conditions into `@custom-media` (build with
         /// `resolve_custom_media = true` until browsers support it).
         #[arg(long)]
@@ -187,6 +191,7 @@ fn run(cli: Cli) -> Result<bool, String> {
             vars,
             var_prefix,
             unroll_loops,
+            mixins,
             custom_media,
             defines,
             preload,
@@ -216,6 +221,11 @@ fn run(cli: Cli) -> Result<bool, String> {
                     },
                     var_prefix,
                     unroll_loops,
+                    mixins: if mixins == "placeholders" {
+                        stylet_migrate::MixinMode::Placeholders
+                    } else {
+                        stylet_migrate::MixinMode::Inline
+                    },
                     custom_media,
                     defines,
                     preload: preload

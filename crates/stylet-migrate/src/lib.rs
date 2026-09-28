@@ -27,9 +27,20 @@ pub enum VarMode {
     Inline,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MixinMode {
+    /// Every mixin call is inlined.
+    #[default]
+    Inline,
+    /// Mixin results used at several places become placeholders where that
+    /// can't change the result; the rest is inlined.
+    Placeholders,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Options {
     pub vars: VarMode,
+    pub mixins: MixinMode,
     /// Prefix for generated custom property names (`--<prefix>name`).
     pub var_prefix: String,
     /// Unroll `for` loops instead of commenting them out.
@@ -60,6 +71,9 @@ pub struct Migration {
     pub warnings: Vec<Warning>,
     /// Problems that prevent writing files (e.g. custom property name collisions).
     pub errors: Vec<String>,
+    /// With `MixinMode::Placeholders`: placeholders made from mixins, with
+    /// the number of call sites extending each.
+    pub mixin_placeholders: Vec<(String, usize)>,
 }
 
 /// Migrates `entries` (absolute paths) and the files they import. `root` is
@@ -101,6 +115,7 @@ pub fn migrate<F: FileSystem>(
     for entry in entries {
         second.entry(entry);
     }
+    migration.mixin_placeholders = second.finish_mixins();
     migration.warnings = std::mem::take(&mut second.warnings);
     for (path, (text, _)) in std::mem::take(&mut second.outputs) {
         let formatted = match stylet_fmt::format(&text, &stylet_fmt::Options::default()) {

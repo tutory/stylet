@@ -5,7 +5,7 @@ use crate::expr::{self, Arg, Expr};
 use crate::out::Out;
 use crate::parse::{self, AssignOp, Branch, Stmt, StmtKind};
 use crate::value::{Number, Value};
-use crate::{Options, VarMode, Warning};
+use crate::{MixinMode, Options, VarMode, Warning};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -44,6 +44,29 @@ pub struct Def {
     params: Vec<(String, Option<Expr>, bool)>,
     body: Rc<Vec<Stmt>>,
     file: PathBuf,
+    /// Defined at the top level of a file that isn't imported inside a rule,
+    /// so placeholders made from it can go where it's defined.
+    placeable: bool,
+    /// Cascade layers around the definition.
+    layers: Vec<String>,
+}
+
+impl Def {
+    fn key(&self) -> String {
+        format!("{}\0{}", self.name, self.file.display())
+    }
+}
+
+/// One distinct result of a mixin, with the call sites that produced it.
+pub struct MixinUse {
+    def: String,
+    name: String,
+    /// The call sites' layer inside the definition's layers, if any.
+    layer: Option<String>,
+    body: Vec<Out>,
+    /// The first call's arguments, for naming the placeholder.
+    args: String,
+    sites: BTreeSet<(PathBuf, u32)>,
 }
 
 /// Evaluated call arguments: (keyword, value).
@@ -81,6 +104,8 @@ struct Ctx {
     in_rule: bool,
     /// Inside a mixin body (output belongs to the caller).
     in_mixin: bool,
+    /// Inside an at-rule other than `@layer`, where `@extend` isn't allowed.
+    conditional: bool,
 }
 
 /// Result of a function body.
@@ -143,6 +168,14 @@ pub struct Interp<'a, F> {
     lookup_paths: Vec<PathBuf>,
     /// The file whose output is being built (mixin bodies run in the caller's output).
     output_file: PathBuf,
+    /// With `MixinMode::Placeholders`: distinct mixin results, and their
+    /// index by (definition, rendered result).
+    mixin_uses: Vec<MixinUse>,
+    mixin_index: HashMap<(String, Option<String>, String), usize>,
+    /// Cascade layers around the current statement.
+    layers: Vec<String>,
+    /// Top-level layer names in order of first appearance, per entry.
+    layer_orders: Vec<Vec<String>>,
 }
 
 impl<'a, F: FileSystem> Interp<'a, F> {
@@ -187,6 +220,10 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             reported: HashSet::new(),
             lookup_paths: Vec::new(),
             output_file: PathBuf::new(),
+            mixin_uses: Vec::new(),
+            mixin_index: HashMap::new(),
+            layers: Vec::new(),
+            layer_orders: Vec::new(),
         }
     }
 
@@ -210,6 +247,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             self.file(preload);
         }
         self.preloading = false;
+        self.layer_orders.push(Vec::new());
         self.file(path);
         for (index, name) in std::mem::take(&mut self.unknown_functions) {
             if self.find_def(&name).is_some()
@@ -264,6 +302,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             top_level: true,
             in_rule: false,
             in_mixin: false,
+            conditional: false,
         };
         self.stmts(&source.stmts, &mut out, ctx);
         self.lookup_paths.pop();
@@ -507,7 +546,15 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                         body: Rc::new(body.clone()),
                         file: self.current_file(),
                         preloaded: self.preloading,
+                        placeable: ctx.top_level
+                            && !ctx.in_mixin
+                            && !self.preloading
+                            && self.imported_in_rule == 0,
+                        layers: self.layers.clone(),
                     };
+                    if def.placeable && self.options.mixins == MixinMode::Placeholders {
+                        out.push(Out::MixinDefs(def.key()));
+                    }
                     self.define(def);
                 }
                 Err(e) => {
@@ -650,14 +697,23 @@ impl<'a, F: FileSystem> Interp<'a, F> {
         } else {
             self.root_relative(&resolved, true)
         };
-        out.push(Out::Import { path, layer });
+        out.push(Out::Import {
+            path,
+            layer: layer.clone(),
+        });
         if require && !self.required.insert(resolved.clone()) {
             return;
         }
         self.required.insert(resolved.clone());
         let nested = ctx.in_rule;
         self.imported_in_rule += usize::from(nested);
+        if let Some(layer) = layer.as_deref() {
+            self.enter_layer(layer);
+        }
         self.file(&resolved);
+        if layer.is_some() {
+            self.layers.pop();
+        }
         self.imported_in_rule -= usize::from(nested);
     }
 
@@ -1009,6 +1065,11 @@ impl<'a, F: FileSystem> Interp<'a, F> {
         let line = stmt.line;
         let prelude = self.substitute_prelude(prelude, line);
         let Some(body) = body else {
+            if name == "layer" && self.layers.is_empty() {
+                for layer in prelude.split(',') {
+                    self.record_layer(layer.trim());
+                }
+            }
             return out.push(Out::AtRule {
                 name: name.to_string(),
                 prelude,
@@ -1037,15 +1098,23 @@ impl<'a, F: FileSystem> Interp<'a, F> {
         }
         let mut inner = Vec::new();
         self.scopes.push(Scope::default());
+        let layer = name == "layer";
+        if layer {
+            self.enter_layer(&prelude);
+        }
         let keyframes = name.ends_with("keyframes");
         let inner_ctx = Ctx {
             top_level: false,
             in_rule: !keyframes
                 && (ctx.in_rule
                     || matches!(name, "font-face" | "page" | "property" | "counter-style")),
+            conditional: ctx.conditional || name != "layer",
             ..ctx
         };
         self.stmts(body, &mut inner, inner_ctx);
+        if layer {
+            self.layers.pop();
+        }
         self.scopes.pop();
         let rule = Out::AtRule {
             name: name.to_string(),
@@ -1190,6 +1259,19 @@ impl<'a, F: FileSystem> Interp<'a, F> {
         let line = stmt.line;
         if let Some(def) = self.find_def(name) {
             let args = self.eval_args(args, line);
+            if self.options.mixins == MixinMode::Placeholders
+                && def.placeable
+                && ctx.in_rule
+                && !ctx.in_mixin
+                && !ctx.conditional
+                && !self.preloading
+            {
+                let text: Vec<String> = args.iter().map(|(_, v)| v.css(false)).collect();
+                let mut body = Vec::new();
+                self.invoke(&def, args, &mut body, ctx, true);
+                self.mixin_result(&def, text.join(" "), body, line, out);
+                return;
+            }
             self.invoke(&def, args, out, ctx, true);
             return;
         }
@@ -1205,6 +1287,197 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                 self.commented(stmt, ctx, out);
             }
         }
+    }
+
+    fn enter_layer(&mut self, name: &str) {
+        if self.layers.is_empty() {
+            self.record_layer(name);
+        }
+        self.layers.push(name.trim().to_string());
+    }
+
+    /// Notes a top-level layer name (`a` of `a.b`) in order of appearance.
+    fn record_layer(&mut self, name: &str) {
+        let top = name.split('.').next().unwrap_or("").trim().to_string();
+        if top.is_empty() || self.preloading {
+            return;
+        }
+        if let Some(order) = self.layer_orders.last_mut()
+            && !order.contains(&top)
+        {
+            order.push(top);
+        }
+    }
+
+    /// Records a mixin call's result for `MixinMode::Placeholders`, or
+    /// inlines it right away when a placeholder could change the result.
+    fn mixin_result(
+        &mut self,
+        def: &Def,
+        args: String,
+        body: Vec<Out>,
+        line: u32,
+        out: &mut Vec<Out>,
+    ) {
+        // A placeholder's declarations come before the rule's own, so a
+        // property the rule set before the call would now win over it.
+        let mut earlier = Vec::new();
+        declarations(out, &mut earlier);
+        let mut own = Vec::new();
+        for item in &body {
+            if let Out::Declaration { name, .. } = item {
+                own.push(name.as_str());
+            }
+        }
+        let overlaps = own.iter().any(|a| {
+            earlier.iter().any(|b| {
+                a == b || a.starts_with(&format!("{b}-")) || b.starts_with(&format!("{a}-"))
+            })
+        });
+        // The placeholder goes where the mixin is defined, so it must end up
+        // in the call's cascade layer: the same, or one more (unnested) layer
+        // it gets wrapped in.
+        let layer = match self.layers.strip_prefix(def.layers.as_slice()) {
+            Some([]) => Some(None),
+            Some([layer]) if def.layers.is_empty() && !layer.contains(['.', ',']) => {
+                Some(Some(layer.clone()))
+            }
+            _ => None,
+        };
+        let Some(layer) = layer else {
+            out.extend(body);
+            return;
+        };
+        if overlaps || body.is_empty() {
+            out.extend(body);
+            return;
+        }
+        let key = (def.key(), layer.clone(), crate::out::render(&body));
+        let id = match self.mixin_index.get(&key) {
+            Some(&id) => id,
+            None => {
+                self.mixin_uses.push(MixinUse {
+                    def: key.0.clone(),
+                    name: def.name.clone(),
+                    layer,
+                    body: body.clone(),
+                    args,
+                    sites: BTreeSet::new(),
+                });
+                self.mixin_index.insert(key, self.mixin_uses.len() - 1);
+                self.mixin_uses.len() - 1
+            }
+        };
+        let site = (self.current_file(), line);
+        self.mixin_uses[id].sites.insert(site.clone());
+        out.push(Out::Mixin { id, site, body });
+    }
+
+    /// Turns mixin results used at two or more places (and more than a single
+    /// declaration) into placeholders where their mixin is defined, and
+    /// inlines the rest. Returns the placeholders with their call site counts.
+    pub fn finish_mixins(&mut self) -> Vec<(String, usize)> {
+        // An `@extend` inside the result would reach a different copy of its
+        // placeholder from where the mixin is defined, so those stay inlined.
+        // A file's conversion is shared by every entry importing it, so a call
+        // site with different results (or layers) in different entries stays
+        // inlined everywhere.
+        let mut results: HashMap<&(PathBuf, u32), usize> = HashMap::new();
+        for u in &self.mixin_uses {
+            for site in &u.sites {
+                *results.entry(site).or_default() += 1;
+            }
+        }
+        let unstable: HashSet<(PathBuf, u32)> = results
+            .into_iter()
+            .filter(|(_, n)| *n > 1)
+            .map(|(site, _)| site.clone())
+            .collect();
+        for u in &mut self.mixin_uses {
+            u.sites.retain(|site| !unstable.contains(site));
+        }
+        let worth = |u: &MixinUse| {
+            u.sites.len() >= 2
+                && (u.body.len() > 1
+                    || u.body.iter().any(|o| !matches!(o, Out::Declaration { .. })))
+                && !has_extend(&u.body)
+        };
+        // Wrapping placeholders in `@layer x` makes layers appear earlier;
+        // an explicit order statement keeps their order, if all entries agree.
+        let order = merged_order(&self.layer_orders);
+        let mut names: Vec<Option<String>> = vec![None; self.mixin_uses.len()];
+        let mut per_def: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (id, u) in self.mixin_uses.iter().enumerate() {
+            if worth(u) && (u.layer.is_none() || order.is_some()) {
+                per_def.entry(u.def.clone()).or_default().push(id);
+            }
+        }
+        let mut taken: HashSet<String> = HashSet::new();
+        for (_, out) in self.outputs.values() {
+            placeholders(out, &mut taken);
+        }
+        let mut report = Vec::new();
+        for ids in per_def.values() {
+            for &id in ids {
+                let u = &self.mixin_uses[id];
+                let base = format!("${}", u.name);
+                let suffix: String = u
+                    .args
+                    .chars()
+                    .map(|c| {
+                        if c.is_ascii_alphanumeric() || c == '-' {
+                            c
+                        } else {
+                            '-'
+                        }
+                    })
+                    .collect::<String>()
+                    .split('-')
+                    .filter(|p| !p.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("-");
+                let mut name = if ids.len() > 1 && !suffix.is_empty() && suffix.len() <= 32 {
+                    format!("{base}-{suffix}")
+                } else {
+                    base.clone()
+                };
+                if taken.contains(&name) {
+                    name = match &u.layer {
+                        Some(layer) => format!("{name}-{layer}"),
+                        None => format!("{name}-mixin"),
+                    };
+                }
+                let stem = name.clone();
+                let mut i = 2;
+                while taken.contains(&name) {
+                    name = format!("{stem}-{i}");
+                    i += 1;
+                }
+                taken.insert(name.clone());
+                report.push((name.clone(), u.sites.len()));
+                names[id] = Some(name);
+            }
+        }
+        let uses = std::mem::take(&mut self.mixin_uses);
+        let order = order.unwrap_or_default();
+        for (text, out) in self.outputs.values_mut() {
+            *out = resolve_mixins(std::mem::take(out), &uses, &names, &order, &unstable);
+            // The layer order statement is only needed once per file.
+            let statement = order.join(", ");
+            let mut seen = false;
+            out.retain(|o| match o {
+                Out::AtRule {
+                    name,
+                    prelude,
+                    body: None,
+                } if name == "layer" && *prelude == statement => {
+                    !std::mem::replace(&mut seen, true)
+                }
+                _ => true,
+            });
+            *text = crate::out::render(out);
+        }
+        report
     }
 
     fn eval_args(&mut self, args: &[Arg], line: u32) -> Vec<(Option<String>, Value)> {
@@ -1331,6 +1604,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                                 top_level: false,
                                 in_rule: false,
                                 in_mixin: true,
+                                conditional: false,
                             };
                             self.invoke(&def, args, &mut sink, ctx, false)
                         }
@@ -1470,6 +1744,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                         top_level: false,
                         in_rule: false,
                         in_mixin: true,
+                        conditional: false,
                     };
                     return self.invoke(&def, args, &mut sink, ctx, false);
                 }
@@ -1608,6 +1883,134 @@ fn literal_value(text: &str) -> Value {
             })
             .unwrap_or_else(|| Value::Ident(text.to_string())),
     }
+}
+
+/// Declaration names in `outs`, including inside not yet resolved mixin results.
+fn declarations<'o>(outs: &'o [Out], names: &mut Vec<&'o str>) {
+    for o in outs {
+        match o {
+            Out::Declaration { name, .. } => names.push(name),
+            Out::Mixin { body, .. } => declarations(body, names),
+            _ => {}
+        }
+    }
+}
+
+fn has_extend(outs: &[Out]) -> bool {
+    outs.iter().any(|o| match o {
+        Out::Extend(_) => true,
+        Out::Rule { body, .. } | Out::Mixin { body, .. } => has_extend(body),
+        Out::AtRule {
+            body: Some(body), ..
+        } => has_extend(body),
+        _ => false,
+    })
+}
+
+/// One order of all layer names that every entry's order agrees with.
+fn merged_order(orders: &[Vec<String>]) -> Option<Vec<String>> {
+    let mut merged: Vec<String> = Vec::new();
+    for order in orders {
+        for name in order {
+            if !merged.contains(name) {
+                merged.push(name.clone());
+            }
+        }
+    }
+    let agrees = orders.iter().all(|order| {
+        let positions: Vec<usize> = order
+            .iter()
+            .filter_map(|n| merged.iter().position(|m| m == n))
+            .collect();
+        positions.windows(2).all(|w| w[0] < w[1])
+    });
+    agrees.then_some(merged)
+}
+
+/// Placeholder names defined in `outs`.
+fn placeholders(outs: &[Out], names: &mut HashSet<String>) {
+    for o in outs {
+        match o {
+            Out::Rule { selectors, body } => {
+                names.extend(selectors.iter().filter(|s| is_placeholder(s)).cloned());
+                placeholders(body, names);
+            }
+            Out::AtRule {
+                body: Some(body), ..
+            } => placeholders(body, names),
+            _ => {}
+        }
+    }
+}
+
+/// Replaces mixin markers: `@extend` for results with a placeholder name,
+/// the result itself otherwise; placeholders go where their mixin is defined.
+fn resolve_mixins(
+    outs: Vec<Out>,
+    uses: &[MixinUse],
+    names: &[Option<String>],
+    order: &[String],
+    unstable: &HashSet<(PathBuf, u32)>,
+) -> Vec<Out> {
+    let resolve = |body| resolve_mixins(body, uses, names, order, unstable);
+    let mut result = Vec::new();
+    for o in outs {
+        match o {
+            Out::Mixin { id, site, body } => match &names[id] {
+                Some(name) if !unstable.contains(&site) => result.push(Out::Extend(name.clone())),
+                _ => result.extend(resolve(body)),
+            },
+            Out::MixinDefs(def) => {
+                let mut layered: BTreeMap<usize, Vec<Out>> = BTreeMap::new();
+                for (id, u) in uses.iter().enumerate() {
+                    let (true, Some(name)) = (u.def == def, &names[id]) else {
+                        continue;
+                    };
+                    let rule = Out::Rule {
+                        selectors: vec![name.clone()],
+                        body: u.body.clone(),
+                    };
+                    match &u.layer {
+                        None => result.push(rule),
+                        Some(layer) => {
+                            let at = order.iter().position(|l| l == layer).unwrap_or(order.len());
+                            layered.entry(at).or_default().push(rule);
+                        }
+                    }
+                }
+                // With a single layer there's no order to keep.
+                if !layered.is_empty() && order.len() > 1 {
+                    result.push(Out::AtRule {
+                        name: "layer".into(),
+                        prelude: order.join(", "),
+                        body: None,
+                    });
+                }
+                for (at, rules) in layered {
+                    result.push(Out::AtRule {
+                        name: "layer".into(),
+                        prelude: order.get(at).cloned().unwrap_or_default(),
+                        body: Some(rules),
+                    });
+                }
+            }
+            Out::Rule { selectors, body } => result.push(Out::Rule {
+                selectors,
+                body: resolve(body),
+            }),
+            Out::AtRule {
+                name,
+                prelude,
+                body,
+            } => result.push(Out::AtRule {
+                name,
+                prelude,
+                body: body.map(resolve),
+            }),
+            other => result.push(other),
+        }
+    }
+    result
 }
 
 fn is_placeholder(selector: &str) -> bool {
