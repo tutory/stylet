@@ -81,6 +81,7 @@ compiles to
 
 - Placeholders (`$name`) are defined at the top level of a file (or inside `@layer`).
   The rule is emitted where the placeholder is defined; unused placeholders emit nothing.
+- One `@extend` can name several placeholders: `@extend $button, $shadow`.
 - Only placeholders can be extended (`@extends` is accepted too). `@extend` can't be
   used inside `@media` and other conditional rules.
 - Extenders' selectors are resolved through their nesting (`:is()` for selector lists).
