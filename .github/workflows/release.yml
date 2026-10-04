@@ -1,30 +1,60 @@
 name: Release
 
-# Push a tag `vX.Y.Z` (matching the workspace version in Cargo.toml) to build
-# the binaries, publish the npm packages and create a GitHub release.
+# Start it from the Actions tab ("Run workflow") or with
+#   gh workflow run release.yml -f version=0.2.0
+# It sets the version, commits and tags it on main, builds the binaries,
+# publishes the npm packages and creates a GitHub release.
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, e.g. 0.2.0 or 0.2.0-beta.1 (a prerelease)
+        required: true
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
 
+concurrency: release
+
 jobs:
   version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the release commit and tag
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - id: version
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          cargo_version=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
-          if [ "$version" != "$cargo_version" ]; then
-            echo "::error::tag $GITHUB_REF_NAME doesn't match the Cargo.toml version $cargo_version"
+          version="${VERSION#v}"
+          if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::'$VERSION' isn't a version like 0.2.0 or 0.2.0-beta.1"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "::error::v$version already exists"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Commit and tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          perl -0pi -e "s/^version = \".*?\"/version = \"$VERSION\"/m" Cargo.toml
+          cargo update --workspace --quiet
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qam "Release v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push -q origin main "v$VERSION"
 
   build:
     needs: version
@@ -40,6 +70,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
       - run: rustup target add ${{ matrix.target }}
       - if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
@@ -63,6 +95,8 @@ jobs:
       id-token: write # npm provenance
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
       - uses: actions/download-artifact@v4
         with:
           path: binaries
@@ -81,7 +115,13 @@ jobs:
           tag=latest
           case "${{ needs.version.outputs.version }}" in *-*) tag=next ;; esac
           # Platform packages first, so the main package never points at missing ones.
+          # Already published ones are skipped, so a failed run can be re-run.
           for dir in npm/dist/stylet-* npm/dist/stylet; do
+            name=$(node -p "require('./$dir/package.json').name")
+            if npm view "$name@${{ needs.version.outputs.version }}" version >/dev/null 2>&1; then
+              echo "$name@${{ needs.version.outputs.version }} is already published"
+              continue
+            fi
             npm publish "$dir" --access public --provenance --tag "$tag"
           done
       - name: GitHub release
@@ -98,6 +138,7 @@ jobs:
               tar -czf "stylet-$name.tar.gz" -C "$name" stylet
             fi
           done
+          tag=${{ needs.version.outputs.tag }}
           prerelease=""
-          case "$GITHUB_REF_NAME" in *-*) prerelease=--prerelease ;; esac
-          gh release create "$GITHUB_REF_NAME" --generate-notes $prerelease stylet-*.tar.gz stylet-*.zip
+          case "$tag" in *-*) prerelease=--prerelease ;; esac
+          gh release create "$tag" --generate-notes $prerelease stylet-*.tar.gz stylet-*.zip
