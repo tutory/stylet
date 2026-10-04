@@ -354,3 +354,29 @@ $ring
     }
     expect_test::expect_file!["migrate_mixins.out"].assert_eq(&out);
 }
+
+/// A file calling an unknown function in two entries is warned about once; the
+/// second call must not mark a later, unrelated warning as "used before defined".
+#[test]
+fn unknown_function_warned_once() {
+    let mut fs = MemoryFs::default();
+    fs.insert("/p/a.styl", ".a\n  color: later(1)\n");
+    fs.insert("/p/one.styl", "@import 'a'\n");
+    fs.insert(
+        "/p/two.styl",
+        "@import 'a'\n.b\n  @extend .c\nlater(x)\n  x\n",
+    );
+    let migration = migrate(
+        &fs,
+        Path::new("/p"),
+        &[PathBuf::from("/p/one.styl"), PathBuf::from("/p/two.styl")],
+        &Options::default(),
+    );
+    let categories: Vec<_> = migration.warnings.iter().map(|w| w.category).collect();
+    assert_eq!(
+        categories,
+        ["js-function", "extend-selector"],
+        "{:#?}",
+        migration.warnings
+    );
+}

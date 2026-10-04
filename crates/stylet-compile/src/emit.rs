@@ -811,20 +811,20 @@ fn url_at(pieces: &Pieces, i: usize) -> Option<(String, &'static str, usize)> {
 
 /// `input, .a` → `& input, .a`: nested selectors starting with an element name
 /// need `&` in browsers with the first version of CSS nesting (Safari 16.5–17.1,
-/// Chrome 112–119). The meaning is the same.
+/// Chrome 112–119). The meaning is the same. Selectors that already contain `&`
+/// (`body.pdf &`) are left alone.
 fn prefix_element_selectors(selector: &str, minify: bool) -> String {
     let parts = extend::split_list(selector);
-    if !parts
-        .iter()
-        .any(|p| p.starts_with(|c: char| c.is_ascii_alphabetic()))
-    {
+    let needs_prefix =
+        |p: &str| p.starts_with(|c: char| c.is_ascii_alphabetic()) && !p.contains('&');
+    if !parts.iter().any(|p| needs_prefix(p)) {
         return selector.to_string();
     }
     let separator = if minify { "," } else { ", " };
     parts
         .iter()
         .map(|p| {
-            if p.starts_with(|c: char| c.is_ascii_alphabetic()) {
+            if needs_prefix(p) {
                 format!("& {p}")
             } else {
                 p.to_string()

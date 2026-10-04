@@ -262,9 +262,15 @@ impl<'a, F: FileSystem> Interp<'a, F> {
     }
 
     fn warn(&mut self, line: u32, category: &'static str, message: impl Into<String>) {
+        self.report(line, category, message);
+    }
+
+    /// Reports a warning once per (file, line, message); returns whether it is new.
+    fn report(&mut self, line: u32, category: &'static str, message: impl Into<String>) -> bool {
         let path = self.file_stack.last().cloned().unwrap_or_default();
         let message = message.into();
-        if self.reported.insert((path.clone(), line, message.clone())) {
+        let new = self.reported.insert((path.clone(), line, message.clone()));
+        if new {
             self.warnings.push(Warning {
                 path,
                 line,
@@ -272,6 +278,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                 message,
             });
         }
+        new
     }
 
     fn source(&mut self, path: &Path) -> Option<Rc<Source>> {
@@ -1823,13 +1830,16 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             builtins::Result::Unknown(v) => {
                 self.unresolved
                     .insert(v.css(false), (name.to_string(), args.clone()));
-                self.unknown_functions
-                    .push((self.warnings.len(), name.to_string()));
-                self.warn(
+                // Remember the warning to reword it if the function turns out to
+                // be defined later (only when it was reported now, not before).
+                let index = self.warnings.len();
+                if self.report(
                     line,
                     "js-function",
                     format!("unknown function `{name}()` (JS plugin?); kept as a CSS function"),
-                );
+                ) {
+                    self.unknown_functions.push((index, name.to_string()));
+                }
                 v
             }
         }

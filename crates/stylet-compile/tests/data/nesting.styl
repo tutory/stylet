@@ -23,3 +23,11 @@
 @layer core {
   a { color: blue }
 }
+
+.tile {
+  &.inWorksheet {
+    body.pdf & {
+      display: none
+    }
+  }
+}
