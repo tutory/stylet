@@ -606,7 +606,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "stylet-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "notify",
@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "stylet-compile"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "expect-test",
  "stylet-resolve",
@@ -632,7 +632,7 @@ dependencies = [
 
 [[package]]
 name = "stylet-fmt"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "expect-test",
  "stylet-compile",
@@ -641,7 +641,7 @@ dependencies = [
 
 [[package]]
 name = "stylet-lsp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "lsp-server",
  "lsp-types",
@@ -655,7 +655,7 @@ dependencies = [
 
 [[package]]
 name = "stylet-migrate"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "expect-test",
  "stylet-fmt",
@@ -665,14 +665,14 @@ dependencies = [
 
 [[package]]
 name = "stylet-resolve"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "stylet-syntax",
 ]
 
 [[package]]
 name = "stylet-syntax"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "expect-test",
  "rowan",
@@ -680,7 +680,7 @@ dependencies = [
 
 [[package]]
 name = "stylet-wasm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde-wasm-bindgen",
