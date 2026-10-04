@@ -249,3 +249,65 @@ fn completions() {
     assert!(complete(&mut server, &app, ".a|\n").is_empty());
     assert!(complete(&mut server, &app, "disp|\n").is_empty());
 }
+
+/// (file name, line) of each location in a definition/references result.
+fn places(result: &Value) -> Vec<(String, u64)> {
+    let mut out: Vec<_> = result
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| {
+            let file = l["uri"].as_str().unwrap().rsplit('/').next().unwrap();
+            (
+                file.to_string(),
+                l["range"]["start"]["line"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn custom_property_navigation() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    fs::write(root.join("index.styl"), "@import 'theme'\n@import 'app'\n").unwrap();
+    fs::write(
+        root.join("theme.styl"),
+        ":root {\n  --gap: 1rem\n}\n\n@property --angle {\n  syntax: '<angle>'\n}\n\n@custom-media --phone (width <= 600px)\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("app.styl"),
+        ".a {\n  --gap: 2rem\n  margin: var(--gap)\n  rotate: var(--angle)\n\n  @media (--phone) {\n    padding: var(--gap, 0)\n  }\n}\n",
+    )
+    .unwrap();
+    let mut server = Server::new(Settings {
+        resolve: ResolveConfig {
+            root: root.clone(),
+            aliases: Vec::new(),
+        },
+        entries: vec![root.join("index.styl")],
+        ..Settings::default()
+    });
+    server.diagnostics();
+    let app = root.join("app.styl");
+    let at = |line: u32, character: u32| json!({ "textDocument": { "uri": uri(&app) }, "position": { "line": line, "character": character } });
+    let s = |f: &str, l: u64| (f.to_string(), l);
+
+    // `var(--gap)` → both declarations; `var(--angle)` → `@property`.
+    let gap = request(&mut server, "textDocument/definition", at(2, 16));
+    assert_eq!(places(&gap), [s("app.styl", 1), s("theme.styl", 1)]);
+    let angle = request(&mut server, "textDocument/definition", at(3, 16));
+    assert_eq!(places(&angle), [s("theme.styl", 4)]);
+    // `(--phone)` → `@custom-media`.
+    let phone = request(&mut server, "textDocument/definition", at(5, 12));
+    assert_eq!(places(&phone), [s("theme.styl", 8)]);
+
+    // References of `--gap` from a declaration, without the declarations.
+    let mut params = at(1, 4);
+    params["context"] = json!({ "includeDeclaration": false });
+    let refs = request(&mut server, "textDocument/references", params);
+    assert_eq!(places(&refs), [s("app.styl", 2), s("app.styl", 6)]);
+}

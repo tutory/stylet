@@ -2,7 +2,8 @@
 
 Language support for [stylet](https://tutory.github.io/stylet/): syntax highlighting,
 errors as you type, formatting (with the project's `stylet.toml` settings), go to
-definition for `@import` paths and `$placeholders`, placeholder references, an
+definition and references for `$placeholders`, custom properties and custom media
+(and go to definition for `@import` paths), an
 outline of rules and placeholders, and completions: CSS properties and their
 keywords, the project's custom properties (`var(--…)`), placeholders after
 `@extend` and `@custom-media` names.

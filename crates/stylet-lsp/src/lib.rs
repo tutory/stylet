@@ -430,6 +430,11 @@ impl Server {
                 let definitions = self.placeholder_locations(token.text(), true, false);
                 (!definitions.is_empty()).then_some(GotoDefinitionResponse::Array(definitions))
             }
+            IDENT => {
+                let (kind, _) = dashed(&token)?;
+                let definitions = self.dashed_locations(token.text(), kind, true, false);
+                (!definitions.is_empty()).then_some(GotoDefinitionResponse::Array(definitions))
+            }
             _ => None,
         }
     }
@@ -441,12 +446,46 @@ impl Server {
         declaration: bool,
     ) -> Option<Vec<Location>> {
         let (_, token) = self.token_at(uri, position)?;
-        (token.kind() == PLACEHOLDER_NAME)
-            .then(|| self.placeholder_locations(token.text(), declaration, true))
+        if token.kind() == PLACEHOLDER_NAME {
+            return Some(self.placeholder_locations(token.text(), declaration, true));
+        }
+        let (kind, _) = dashed(&token)?;
+        Some(self.dashed_locations(token.text(), kind, declaration, true))
     }
 
     /// Definitions and/or `@extend`s of placeholder `name` in all known and open files.
     fn placeholder_locations(&self, name: &str, definitions: bool, extends: bool) -> Vec<Location> {
+        self.locations(definitions, extends, |token| {
+            (token.kind() == PLACEHOLDER_NAME && token.text() == name)
+                .then(|| !token.parent_ancestors().any(|n| n.kind() == EXTEND))
+        })
+    }
+
+    /// Definitions and/or uses of the custom property or custom media `name`.
+    fn dashed_locations(
+        &self,
+        name: &str,
+        kind: Dashed,
+        definitions: bool,
+        uses: bool,
+    ) -> Vec<Location> {
+        self.locations(definitions, uses, |token| {
+            if token.text() != name {
+                return None;
+            }
+            let (k, definition) = dashed(token)?;
+            (k == kind).then_some(definition)
+        })
+    }
+
+    /// Tokens in all known and open files for which `classify` returns
+    /// whether they are a definition (or `None` for unrelated tokens).
+    fn locations(
+        &self,
+        definitions: bool,
+        uses: bool,
+        classify: impl Fn(&SyntaxToken) -> Option<bool>,
+    ) -> Vec<Location> {
         let mut out = Vec::new();
         for path in self.project_files() {
             let Some(text) = self.text(&path) else {
@@ -461,16 +500,15 @@ impl Server {
                 .descendants_with_tokens()
                 .filter_map(|e| e.into_token())
             {
-                if token.kind() != PLACEHOLDER_NAME || token.text() != name {
-                    continue;
+                match classify(&token) {
+                    Some(true) if definitions => {}
+                    Some(false) if uses => {}
+                    _ => continue,
                 }
-                let in_extend = token.parent_ancestors().any(|n| n.kind() == EXTEND);
-                if (in_extend && extends) || (!in_extend && definitions) {
-                    out.push(Location {
-                        uri: uri.clone(),
-                        range: range(&index, token.text_range()),
-                    });
-                }
+                out.push(Location {
+                    uri: uri.clone(),
+                    range: range(&index, token.text_range()),
+                });
             }
         }
         out
@@ -647,6 +685,40 @@ impl Server {
         let root = stylet_syntax::parse(&text).syntax();
         Some(DocumentSymbolResponse::Nested(symbols(&root, &index)))
     }
+}
+
+/// What a `--name` refers to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Dashed {
+    CustomProperty,
+    CustomMedia,
+}
+
+/// Whether `token` is a `--name` and, if so, of which kind and whether it
+/// defines it: `--x: …`, `@property --x`, `@custom-media --x …`.
+fn dashed(token: &SyntaxToken) -> Option<(Dashed, bool)> {
+    if token.kind() != IDENT || !token.text().starts_with("--") {
+        return None;
+    }
+    let parent = token.parent()?;
+    if parent.kind() == PROPERTY {
+        return Some((Dashed::CustomProperty, true));
+    }
+    let Some(prelude) = token.parent_ancestors().find(|n| n.kind() == PRELUDE) else {
+        return Some((Dashed::CustomProperty, false));
+    };
+    let first = prelude
+        .descendants_with_tokens()
+        .filter_map(|e| e.into_token())
+        .find(|t| !t.kind().is_trivia())
+        .is_some_and(|t| t == *token);
+    let rule = prelude.parent().and_then(AtRule::cast)?;
+    Some(match rule.name().as_str() {
+        "custom-media" => (Dashed::CustomMedia, first),
+        "property" => (Dashed::CustomProperty, first),
+        "media" | "import" | "container" => (Dashed::CustomMedia, false),
+        _ => (Dashed::CustomProperty, false),
+    })
 }
 
 fn diagnostic(

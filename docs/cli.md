@@ -65,7 +65,9 @@ unsaved editor contents taking precedence, and offers:
 
 - diagnostics for every file the entries reach (open files outside them get syntax errors)
 - formatting with the `[fmt]` settings
-- go to definition for `@import` paths and `$placeholders`, placeholder references
+- go to definition and references for `$placeholders`, custom properties (`var(--x)` →
+  `--x: …` and `@property --x`) and custom media (`(--phone)` → `@custom-media`);
+  go to definition for `@import` paths
 - document symbols (rules, placeholders, at-rules)
 - completions: CSS properties and their keywords (from [webref](https://github.com/w3c/webref)),
   custom properties declared in the project (`var(--…)`), placeholders after `@extend`
