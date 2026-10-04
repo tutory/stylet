@@ -31,8 +31,8 @@ $btn {
 ```
 
 Tooling: formatter, `stylet migrate` for existing Stylus code, a browser playground,
-a language server (`stylet lsp`), a [VS Code extension](editors/vscode) and a
-[tree-sitter grammar](editors/tree-sitter-stylet).
+a language server (`stylet lsp`), a [VS Code extension](editors/vscode), a
+[setup guide for WebStorm](editors/jetbrains) and a [tree-sitter grammar](editors/tree-sitter-stylet).
 
 ```sh
 stylet build src/index.styl -o dist/index.css
