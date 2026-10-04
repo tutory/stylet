@@ -47,6 +47,13 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
+    pub fn warning(message: impl Into<String>, file: Option<FileId>, range: TextRange) -> Self {
+        Self {
+            severity: Severity::Warning,
+            ..Self::error(message, file, range)
+        }
+    }
+
     pub fn error(message: impl Into<String>, file: Option<FileId>, range: TextRange) -> Self {
         Self {
             severity: Severity::Error,

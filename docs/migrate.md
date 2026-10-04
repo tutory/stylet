@@ -115,6 +115,8 @@ Categories:
 | `units` | mixed-unit arithmetic: Stylus ignored units; stylet keeps a correct `calc()` |
 | `placeholder` | placeholder in a file imported inside a rule: its `@extend`s were inlined |
 | `import-dependent` | a file converts differently depending on where it's imported; the last version is kept |
+| `undefined` | a `$variable` or camelCase name that isn't defined: Stylus output it as is (invalid CSS); replace it with the intended value |
+| `escape` | a backslash inside a selector name (`.a\.b`) that Stylus dropped; write `\.` if the name contains the character |
 | `url` | relative `url()`: Stylus left it relative to the output, stylet rebases it from the source file |
 | `asset`, `import` | a file that couldn't be found |
 | `unsupported`, `syntax`, `expression` | a Stylus feature the migration doesn't handle yet (e.g. a built-in like `mix()`, block mixins) |

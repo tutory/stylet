@@ -503,6 +503,13 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                 });
             }
             StmtKind::Rule { selectors, body } => {
+                for selector in selectors.iter().filter(|s| drops_escape_in_name(s)) {
+                    self.warn(
+                        line,
+                        "escape",
+                        format!("`{selector}`: Stylus dropped the backslash inside the name (it needed `\\\\`); kept as Stylus output it, write `\\` in stylet if the name contains the escaped character"),
+                    );
+                }
                 let selectors: Vec<String> = selectors
                     .iter()
                     .map(|s| self.interpolate(&unescape_selector(s), line))
@@ -920,6 +927,7 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                         self.mirrors.insert(name);
                         return;
                     }
+                    self.warn_undefined_names(&name, &e, line);
                     let v = self.eval(&e, line, true);
                     self.record_declaration_usage(&v);
                     if has_relative_url(&v.css(false)) {
@@ -950,6 +958,63 @@ impl<'a, F: FileSystem> Interp<'a, F> {
             value: css,
             comment,
         });
+    }
+
+    /// Names like `defaultBorder` that aren't defined: Stylus output them as is.
+    /// Only for properties without custom identifiers (not `font-family`,
+    /// `grid-area`, `animation`, …), and only camelCase names, which CSS
+    /// keywords never are.
+    fn warn_undefined_names(&mut self, property: &str, e: &Expr, line: u32) {
+        const VALUES_ONLY: &[&str] = &[
+            "border",
+            "margin",
+            "padding",
+            "inset",
+            "outline",
+            "width",
+            "height",
+            "min-width",
+            "max-width",
+            "min-height",
+            "max-height",
+            "top",
+            "right",
+            "bottom",
+            "left",
+            "gap",
+            "color",
+            "background",
+            "background-color",
+            "font-size",
+            "line-height",
+            "box-shadow",
+            "opacity",
+            "z-index",
+        ];
+        let base = property.trim_start_matches('-');
+        let strict = VALUES_ONLY
+            .iter()
+            .any(|p| base == *p || base.starts_with(&format!("{p}-")))
+            || base.starts_with("border-");
+        if !strict {
+            return;
+        }
+        let mut names = Vec::new();
+        idents(e, &mut names);
+        for name in names {
+            if !name.starts_with('$')
+                && !name.eq_ignore_ascii_case("currentcolor")
+                && name.chars().any(|c| c.is_ascii_uppercase())
+                && name.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+                && self.lookup(&name).is_none()
+            {
+                self.warn(
+                    line,
+                    "undefined",
+                    format!("`{name}` isn't defined, so Stylus output it as is (invalid CSS); kept as is"),
+                );
+            }
+        }
     }
 
     fn record_declaration_usage(&mut self, value: &Value) {
@@ -1646,7 +1711,16 @@ impl<'a, F: FileSystem> Interp<'a, F> {
                 None if name == "true" => Value::Bool(true),
                 None if name == "false" => Value::Bool(false),
                 None if name == "null" => Value::Null,
-                None => Value::Ident(name.clone()),
+                None => {
+                    if name.starts_with('$') {
+                        self.warn(
+                            line,
+                            "undefined",
+                            format!("`{name}` isn't defined, so Stylus output it as is (invalid CSS); kept as is"),
+                        );
+                    }
+                    Value::Ident(name.clone())
+                }
             },
             Expr::Raw(r) => Value::Raw(r.clone()),
             Expr::PropertyLookup(p) => {
@@ -1940,6 +2014,21 @@ fn reason(message: &str) -> &str {
         .map_or(message, |(_, reason)| reason)
 }
 
+/// Identifiers in an expression (not function names).
+fn idents(e: &Expr, out: &mut Vec<String>) {
+    match e {
+        Expr::Ident(name) => out.push(name.clone()),
+        Expr::Call { args, .. } => args.iter().for_each(|a| idents(&a.value, out)),
+        Expr::Binary { lhs, rhs, .. } => {
+            idents(lhs, out);
+            idents(rhs, out);
+        }
+        Expr::Unary { expr, .. } | Expr::Paren(expr) => idents(expr, out),
+        Expr::List { items, .. } => items.iter().for_each(|i| idents(i, out)),
+        _ => {}
+    }
+}
+
 fn has_extend(outs: &[Out]) -> bool {
     outs.iter().any(|o| match o {
         Out::Extend(_) => true,
@@ -2116,6 +2205,27 @@ fn has_relative_url(css: &str) -> bool {
 
 /// Stylus drops the backslash of `\x` escapes in selector source (outside
 /// `{interpolation}`).
+/// Whether a single backslash escapes a character inside a name (`.a\.b`),
+/// which Stylus dropped; `\\.` (an escaped backslash) and escapes at the start of
+/// a selector (`\.form …`) are fine.
+fn drops_escape_in_name(selector: &str) -> bool {
+    let chars: Vec<char> = selector.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' {
+            let after_name =
+                i > 0 && (chars[i - 1].is_alphanumeric() || matches!(chars[i - 1], '-' | '_'));
+            if after_name && chars.get(i + 1).is_some_and(|c| *c != '\\') {
+                return true;
+            }
+            i += 2;
+            continue;
+        }
+        i += 1;
+    }
+    false
+}
+
 fn unescape_selector(selector: &str) -> String {
     let mut out = String::new();
     let mut depth = 0;

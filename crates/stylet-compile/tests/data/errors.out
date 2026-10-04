@@ -17,8 +17,12 @@
 .c {
   color: red;
 }
+
+.leftover {
+  font-family: $fontFamilyMono;
+}
 --- minified
-& .a{color:red;}@keyframes k{from{color:red;}}@font-face{}.b{color:red;}.c{color:red;}
+& .a{color:red;}@keyframes k{from{color:red;}}@font-face{}.b{color:red;}.c{color:red;}.leftover{font-family:$fontFamilyMono;}
 --- diagnostics
 Error 0..10 "color: red": declarations must be inside a rule
 Error 11..15 "& .a": `&` needs a parent rule
@@ -30,3 +34,4 @@ Error 178..188 "color: red": `@keyframes` may only contain keyframe selectors
 Error 229..231 ".a": style rules aren't allowed here
 Error 250..261 "@import 'x'": can't find `x` (tried /x.styl, /x/index.styl)
 Error 313..314 ";": stylet doesn't use semicolons; end the line instead
+Warning 345..360 "$fontFamilyMono": `$fontFamilyMono` isn't CSS (a Stylus variable?); use a custom property, `var(--…)`

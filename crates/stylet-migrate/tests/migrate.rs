@@ -380,3 +380,32 @@ fn unknown_function_warned_once() {
         migration.warnings
     );
 }
+
+/// Stylus output undefined variables and names as they were; the migration
+/// keeps them but warns, as it does for a backslash Stylus dropped.
+#[test]
+fn stylus_leftovers_are_reported() {
+    let mut fs = MemoryFs::default();
+    fs.insert(
+        "/p/index.styl",
+        ".a\\.b small\n  color: $missing\n  border: defaultBorder\n  outline: 1px solid currentColor\n  font-family: robotoMono\n.c\\\\.d\n  x: y\n",
+    );
+    let migration = migrate(
+        &fs,
+        Path::new("/p"),
+        &[PathBuf::from("/p/index.styl")],
+        &Options::default(),
+    );
+    let found: Vec<_> = migration
+        .warnings
+        .iter()
+        .map(|w| format!("{} {}", w.line, w.category))
+        .collect();
+    assert_eq!(
+        found,
+        ["1 escape", "2 undefined", "3 undefined"],
+        "{:#?}",
+        migration.warnings
+    );
+    assert!(migration.files[Path::new("/p/index.styl")].contains("color: $missing"));
+}

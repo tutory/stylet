@@ -197,6 +197,12 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         *self.stack.last().expect("emitting outside of a file")
     }
 
+    fn warning(&mut self, range: TextRange, message: impl Into<String>) {
+        let file = self.file();
+        self.diagnostics
+            .push(Diagnostic::warning(message, Some(file), range));
+    }
+
     fn error(&mut self, range: TextRange, message: impl Into<String>) {
         let file = self.file();
         self.diagnostics
@@ -349,6 +355,19 @@ impl<'a, F: FileSystem> Emitter<'a, F> {
         };
         let value = match decl.value() {
             Some(v) => {
+                // `$name` is never CSS: most likely a Stylus variable left behind.
+                for token in v
+                    .syntax()
+                    .descendants_with_tokens()
+                    .filter_map(|e| e.into_token())
+                {
+                    if token.kind() == stylet_syntax::SyntaxKind::PLACEHOLDER_NAME {
+                        self.warning(
+                            token.text_range(),
+                            format!("`{}` isn't CSS (a Stylus variable?); use a custom property, `var(--…)`", token.text()),
+                        );
+                    }
+                }
                 let pieces = self.rewrite_urls(text::pieces(v.syntax()), v.syntax().text_range());
                 text::join(&pieces, Context::Value, self.options.minify)
             }
