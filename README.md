@@ -42,6 +42,18 @@ stylet migrate client/index.styl --dry-run
 
 See the [website](https://tutory.github.io/stylet/), the [documentation](docs/README.md) and [PLAN.md](PLAN.md).
 
+## Install
+
+```sh
+npm install --save-dev @tutory_de/stylet   # prebuilt binary for macOS, Linux and Windows
+npx stylet build src/index.styl -o dist/index.css
+```
+
+From Node, `require('@tutory_de/stylet').binaryPath()` returns the binary's path, for
+`child_process` calls. Binaries are also attached to the
+[GitHub releases](https://github.com/tutory/stylet/releases); with Rust,
+`cargo install --git https://github.com/tutory/stylet stylet-cli`.
+
 ## License
 
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

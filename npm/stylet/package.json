@@ -1,0 +1,16 @@
+{
+  "name": "@tutory_de/stylet",
+  "version": "0.0.0",
+  "description": "A small, fast successor to Stylus: nesting, imports and placeholder extends, without semicolons",
+  "keywords": ["css", "stylus", "preprocessor", "bundler", "formatter"],
+  "homepage": "https://tutory.github.io/stylet/",
+  "repository": { "type": "git", "url": "git+https://github.com/tutory/stylet.git" },
+  "bugs": "https://github.com/tutory/stylet/issues",
+  "license": "MIT OR Apache-2.0",
+  "bin": { "stylet": "bin/stylet.js" },
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": ["bin", "index.js", "index.d.ts"],
+  "engines": { "node": ">=18" },
+  "optionalDependencies": {}
+}
