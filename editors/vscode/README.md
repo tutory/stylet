@@ -8,11 +8,19 @@ outline of rules and placeholders, and completions: CSS properties and their
 keywords, the project's custom properties (`var(--…)`), placeholders after
 `@extend` and `@custom-media` names.
 
-## Requirements
+## The stylet binary
 
-The `stylet` binary, on your `PATH` or configured with `stylet.path`. The extension
-starts `stylet lsp` in the workspace folder, so `stylet.toml` (entries, aliases,
-`[fmt]`) is picked up; the server restarts when `stylet.toml` changes.
+The extension starts `stylet lsp` in the workspace folder, so `stylet.toml` (entries,
+aliases, `[fmt]`) is picked up; the server restarts when `stylet.toml` changes. It uses,
+in this order:
+
+1. the `stylet.path` setting,
+2. the project's own version, if it has the npm package `@tutory_de/stylet` installed
+   (only in trusted workspaces),
+3. the binary bundled with the extension (macOS, Linux, Windows),
+4. `stylet` on your `PATH`.
+
+The "stylet" output channel shows which one is used.
 
 ## `.styl` and Stylus extensions
 
@@ -29,7 +37,7 @@ VS Code which one to use in the workspace settings:
 
 | Setting | Default | |
 |---|---|---|
-| `stylet.path` | `stylet` | Path to the stylet binary |
+| `stylet.path` | | Path to the stylet binary (empty: see above) |
 | `stylet.trace.server` | `off` | Log the language server communication |
 
 Format on save: `"[stylet]": { "editor.formatOnSave": true }`.

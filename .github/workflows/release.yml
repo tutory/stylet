@@ -87,8 +87,68 @@ jobs:
           name: stylet-${{ matrix.name }}
           path: dist/${{ matrix.name }}
 
-  publish:
+  vscode:
     needs: [version, build]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: binaries
+          pattern: stylet-*
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Package
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          # The marketplaces only take X.Y.Z; prereleases are packaged as
+          # pre-release VSIXes for the GitHub release only.
+          npm version --no-git-tag-version --allow-same-version "${VERSION%%-*}"
+          flags=--no-dependencies
+          case "$VERSION" in *-*) flags="$flags --pre-release" ;; esac
+          mkdir -p ../../vsix
+          # One VSIX per platform with its binary; alpine uses the static linux ones.
+          for pair in darwin-arm64:darwin-arm64 darwin-x64:darwin-x64 linux-x64:linux-x64 \
+                      linux-arm64:linux-arm64 alpine-x64:linux-x64 alpine-arm64:linux-arm64 \
+                      win32-x64:win32-x64; do
+            target=${pair%%:*} binary=${pair#*:}
+            rm -rf bin && mkdir bin
+            cp ../../binaries/stylet-$binary/stylet* bin/
+            chmod +x bin/*
+            npx vsce package $flags --target "$target" -o "../../vsix/stylet-$target.vsix"
+          done
+          # Other platforms: no binary (uses the workspace's package or PATH).
+          rm -rf bin
+          npx vsce package $flags -o ../../vsix/stylet-universal.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: vsix
+      - name: Publish to the VS Code Marketplace
+        if: ${{ !contains(needs.version.outputs.version, '-') }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then echo "::warning::VSCE_PAT isn't set; not published to the VS Code Marketplace"; exit 0; fi
+          npx vsce publish --skip-duplicate --packagePath ../../vsix/*.vsix
+      - name: Publish to Open VSX
+        if: ${{ !contains(needs.version.outputs.version, '-') }}
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then echo "::warning::OVSX_PAT isn't set; not published to Open VSX"; exit 0; fi
+          npx -y ovsx publish --skip-duplicate --packagePath ../../vsix/*.vsix
+
+  publish:
+    needs: [version, build, vscode]
     runs-on: ubuntu-latest
     permissions:
       contents: write # GitHub release
@@ -103,6 +163,10 @@ jobs:
           pattern: stylet-*
       - name: Strip artifact prefixes
         run: for d in binaries/stylet-*; do mv "$d" "binaries/${d#binaries/stylet-}"; done
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+          path: vsix
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -141,4 +205,4 @@ jobs:
           tag=${{ needs.version.outputs.tag }}
           prerelease=""
           case "$tag" in *-*) prerelease=--prerelease ;; esac
-          gh release create "$tag" --generate-notes $prerelease stylet-*.tar.gz stylet-*.zip
+          gh release create "$tag" --generate-notes $prerelease stylet-*.tar.gz stylet-*.zip ../vsix/*.vsix

@@ -33,7 +33,7 @@ jobs:
           node-version: 22
       - name: VS Code grammar
         working-directory: editors/vscode
-        run: npm ci && npm test
+        run: npm ci && npm test && npm run bundle && npx vsce ls --no-dependencies
       - name: tree-sitter grammar
         working-directory: editors/tree-sitter-stylet
         run: |

@@ -1,7 +1,7 @@
 {
   "name": "stylet",
   "displayName": "stylet",
-  "description": "stylet language support: highlighting, diagnostics, formatting, go to definition",
+  "description": "stylet language support: highlighting, diagnostics, formatting, completions, go to definition and references",
   "version": "0.0.1",
   "publisher": "tutory",
   "license": "MIT OR Apache-2.0",
@@ -19,10 +19,25 @@
     "Formatters",
     "Linters"
   ],
+  "keywords": [
+    "stylet",
+    "stylus",
+    "css",
+    "styl"
+  ],
   "activationEvents": [
     "workspaceContains:stylet.toml"
   ],
-  "main": "./extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In untrusted workspaces the stylet binary from the workspace's node_modules isn't used.",
+      "restrictedConfigurations": [
+        "stylet.path"
+      ]
+    }
+  },
+  "main": "./dist/extension.js",
   "contributes": {
     "languages": [
       {
@@ -52,8 +67,9 @@
       "properties": {
         "stylet.path": {
           "type": "string",
-          "default": "stylet",
-          "description": "Path to the stylet binary (used for `stylet lsp`)."
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Path to the stylet binary. Empty: the workspace's `@tutory_de/stylet` npm package, then the binary bundled with the extension, then `stylet` on PATH."
         },
         "stylet.trace.server": {
           "type": "string",
@@ -86,10 +102,13 @@
   },
   "scripts": {
     "test": "node test/grammar.js",
+    "bundle": "esbuild extension.js --bundle --platform=node --format=cjs --external:vscode --minify --outfile=dist/extension.js",
+    "vscode:prepublish": "npm run bundle",
     "package": "vsce package"
   },
   "devDependencies": {
     "@vscode/vsce": "^3.6.0",
+    "esbuild": "0.28.2",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.2.0"
   }

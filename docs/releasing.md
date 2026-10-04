@@ -18,7 +18,16 @@ The [workflow](../.github/workflows/release.yml):
 3. publishes `@tutory_de/stylet-<platform>` packages with the binaries and then
    `@tutory_de/stylet`, which depends on them optionally (npm installs only the one
    for the current platform) and provides the `stylet` command,
-4. creates a GitHub release with the binaries as archives and generated notes.
+4. packages the VS Code extension once per platform with its binary (plus one without
+   a binary for other platforms) and publishes it to the
+   [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=tutory.stylet)
+   and [Open VSX](https://open-vsx.org/extension/tutory/stylet) (used by Cursor,
+   VSCodium, Windsurf),
+5. creates a GitHub release with the binaries as archives, the VSIX files and
+   generated notes.
+
+The marketplaces only accept `X.Y.Z` versions: prereleases aren't published there;
+their VSIX files (marked as pre-release) are attached to the GitHub release.
 
 If a later step fails, fix the cause and use "Re-run failed jobs": the commit and tag
 stay, and packages that were already published are skipped.
@@ -37,6 +46,21 @@ gh secret set NPM_TOKEN --repo tutory/stylet
 ```
 
 Packages are published with provenance, so npm shows which workflow run built them.
+
+The extension is published with two more secrets; while one is missing, that
+marketplace is skipped with a warning:
+
+- `VSCE_PAT`: an Azure DevOps personal access token with the scope "Marketplace →
+  Manage" for "All accessible organizations", from an account that manages the
+  publisher `tutory` on [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage).
+- `OVSX_PAT`: an [Open VSX](https://open-vsx.org) access token (sign in with GitHub,
+  accept the publisher agreement); the namespace is created once with
+  `npx ovsx create-namespace tutory -p <token>`.
+
+```sh
+gh secret set VSCE_PAT --repo tutory/stylet
+gh secret set OVSX_PAT --repo tutory/stylet
+```
 
 ## Trying the packages locally
 

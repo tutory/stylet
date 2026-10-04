@@ -1,4 +1,10 @@
-test/**
-node_modules/.bin/**
-**/*.map
-.gitignore
+**
+!dist/extension.js
+!bin/**
+!syntaxes/**
+!language-configuration.json
+!package.json
+!icon.png
+!README.md
+!CHANGELOG.md
+!LICENSE
