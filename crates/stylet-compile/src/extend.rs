@@ -71,7 +71,11 @@ pub fn nest(parent: &str, child: &str, list_separator: &str) -> String {
     let resolved: Vec<String> = split_list(child)
         .into_iter()
         .map(|item| {
-            let leading_amp = item.starts_with('&') && !item[1..].contains('&');
+            // A single parent only needs `:is()` when `&` isn't at the start: `.x .y`
+            // + `.c` (or `&.c`, `& > .c`) is plainly `.x .y .c`, but `.p &` must
+            // not become `.p .x .y`.
+            let leading_amp =
+                !item.contains('&') || (item.starts_with('&') && !item[1..].contains('&'));
             let wrap = parents.len() > 1 || (!leading_amp && is_complex(parent));
             let parent = if wrap {
                 format!(":is({parent})")
@@ -162,6 +166,8 @@ mod tests {
         assert_eq!(n(".a, .b", ".c"), ":is(.a, .b) .c");
         assert_eq!(n(".a, .b", "&.c"), ":is(.a, .b).c");
         assert_eq!(n(".a .b", "&.c"), ".a .b.c");
+        assert_eq!(n(".a .b", ".c"), ".a .b .c");
+        assert_eq!(n(".a > .b", "> .c, + .d"), ".a > .b > .c, .a > .b + .d");
         assert_eq!(n(".a .b", ".x &"), ".x :is(.a .b)");
         assert_eq!(n(".a", "[data-x='&'] &"), "[data-x='&'] .a");
     }
