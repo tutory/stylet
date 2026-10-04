@@ -44,6 +44,9 @@ enum Command {
         /// Rebuild when inputs change.
         #[arg(short, long)]
         watch: bool,
+        /// Print the files each input reads (imports, inlined assets) instead of the CSS.
+        #[arg(long, conflicts_with_all = ["output", "watch"])]
+        deps: bool,
     },
     /// Convert Stylus files to stylet, following the imports of the given entries.
     /// Files are rewritten in place unless `--out` is given.
@@ -125,6 +128,7 @@ fn run(cli: Cli) -> Result<bool, String> {
             resolve_custom_media,
             flatten,
             watch,
+            deps,
         } => {
             let jobs = if inputs.is_empty() {
                 if output.is_some() {
@@ -174,6 +178,7 @@ fn run(cli: Cli) -> Result<bool, String> {
                     output: None,
                 },
                 cwd,
+                deps,
             };
             if watch {
                 build::watch(&config, &build)?;

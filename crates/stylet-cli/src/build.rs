@@ -20,6 +20,8 @@ pub struct Build {
     pub jobs: Vec<Job>,
     pub options: Options,
     pub cwd: PathBuf,
+    /// Print the files each build reads instead of the CSS.
+    pub deps: bool,
 }
 
 impl Build {
@@ -42,6 +44,13 @@ impl Build {
             if out.has_errors() {
                 eprintln!("✗ {}", self.display(&job.input));
                 ok = false;
+                continue;
+            }
+            if self.deps {
+                let mut stdout = std::io::stdout();
+                for dependency in &out.dependencies {
+                    let _ = writeln!(stdout, "{}", self.display(dependency));
+                }
                 continue;
             }
             let written = match &job.output {

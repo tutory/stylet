@@ -17,6 +17,7 @@ stylet build --watch                             # rebuild on changes
 | `--resolve-custom-media` | Substitute `@custom-media` references |
 | `--flatten` | Compile nesting away, for browsers without CSS nesting |
 | `-w, --watch` | Rebuild when an input changes |
+| `--deps` | Print the files each input reads (imports, inlined assets), one per line, instead of the CSS |
 
 Output isn't written when there are errors, so `--watch` keeps the last good build.
 
